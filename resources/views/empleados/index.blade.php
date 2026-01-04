@@ -90,7 +90,7 @@
         const data = Object.fromEntries(formData.entries());
 
         try {
-            const response = await fetch('{{ route('empleados.store') }}', {
+            const response = await fetch("{{ route('empleados.store') }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -17,25 +17,23 @@ class Empleado extends Model
     protected $fillable = [
         'numero_empleado',
         'nombre',
-        'apellido_paterno', // <-- CAMBIO
-        'apellido_materno', // <-- CAMBIO
+        'apellido_paterno',
+        'apellido_materno',
         'correo',
         'estatus',
         'fecha_ingreso',
+        'fecha_baja',      // <-- Nuevo
+        'motivo_baja',     // <-- Nuevo
+        'foto_url',        // <-- Nuevo
         'departamento_id',
         'planta_id',
-        'puesto_id', // <-- CAMBIO
+        'puesto_id',
     ];
 
-    /**
-     * Obtiene el nombre completo del empleado.
-     */
     public function getNombreCompletoAttribute()
     {
         return "{$this->nombre} {$this->apellido_paterno} {$this->apellido_materno}";
     }
-
-    // --- RELACIONES ---
 
     public function departamento()
     {
@@ -49,6 +47,18 @@ class Empleado extends Model
 
     public function puesto()
     {
-        return $this->belongsTo(CatalogoPuesto::class, 'puesto_id'); // <-- NUEVA RELACIÓN
+        return $this->belongsTo(CatalogoPuesto::class, 'puesto_id');
+    }
+
+    // Relación para ver activos asignados (Historial completo)
+    public function asignaciones()
+    {
+        return $this->hasMany(Asignacion::class, 'empleado_id')->orderBy('fecha_asignacion', 'desc');
+    }
+    
+    // Relación auxiliar para ver SOLO los activos actuales (no devueltos)
+    public function asignacionesActivas()
+    {
+        return $this->hasMany(Asignacion::class, 'empleado_id')->whereNull('fecha_devolucion');
     }
 }

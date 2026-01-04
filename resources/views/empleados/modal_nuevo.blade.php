@@ -7,6 +7,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="formNuevoEmpleado">
+                <div class="col-md-12">
+                    <label class="form-label">Fotografía de Perfil</label>
+                    <input type="file" class="form-control" name="foto" accept="image/*">
+                    <div class="form-text">Formatos permitidos: JPG, PNG. Máx 2MB.</div>
+                </div>
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
