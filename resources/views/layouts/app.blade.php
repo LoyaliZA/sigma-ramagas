@@ -5,14 +5,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <title>@yield('title', 'SIGMA - Ramagas')</title>
 
-    <link rel="icon" href="{{ asset('../../public/img/ramagas_mini.ico') }}">
+    <link rel="icon" href="{{ asset('img/ramagas_mini.ico') }}">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
-    @vite(['resources/css/app.css'])
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
 <body>
@@ -27,7 +28,7 @@
             </div>
         </div>
 
-        <nav class="nav-menu">
+        <nav class="nav-menu flex-grow-1">
             <span class="nav-label">Sistema de Gestión</span>
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -74,17 +75,43 @@
                 </li>
             </ul>
         </nav>
+
+        <div class="mt-auto pt-3 border-top">
+            <div class="d-flex align-items-center mb-2 px-2 text-muted small">
+                <i class="bi bi-person-circle me-2"></i>
+                <span class="text-truncate">{{ Auth::user()->name ?? 'Usuario' }}</span>
+            </div>
+            
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </form>
+        </div>
     </div>
 
     <main class="main-content">
-        @yield('content')
+        {{-- Lógica Híbrida: --}}
+        {{-- Si venimos de Breeze (Login/Perfil), usamos $slot --}}
+        @if(isset($slot))
+            <div class="container-fluid">
+                {{ $slot }}
+            </div>
+        {{-- Si venimos de tus vistas clásicas (Dashboard), usamos @yield --}}
+        @else
+            @yield('content')
+        @endif
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        const metaCsrf = document.querySelector('meta[name="csrf-token"]');
+        if(metaCsrf) {
+            window.csrfToken = metaCsrf.getAttribute('content');
+        }
     </script>
     @stack('scripts')
 </body>
-
 </html>

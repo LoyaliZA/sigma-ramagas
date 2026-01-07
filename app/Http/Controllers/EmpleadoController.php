@@ -8,8 +8,8 @@ use App\Models\CatalogoPuesto;
 use App\Models\Empleado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf; // Asegúrate de tener instalado dompdf
+use Illuminate\Support\Facades\Storage; // Importante para las fotos
+use Barryvdh\DomPDF\Facade\Pdf; // Importante para el PDF
 
 class EmpleadoController extends Controller
 {
@@ -34,13 +34,14 @@ class EmpleadoController extends Controller
                 'departamento_id' => 'required|integer',
                 'planta_id' => 'required|integer',
                 'estatus' => 'required',
-                'foto' => 'nullable|image|max:2048' // Validación de imagen
+                'foto' => 'nullable|image|max:2048' // Max 2MB
             ]);
 
             $data = $request->except('foto');
 
-            // Manejo de la foto
+            // Subida de Foto
             if ($request->hasFile('foto')) {
+                // Guardar en storage/app/public/empleados (Requiere: php artisan storage:link)
                 $path = $request->file('foto')->store('empleados', 'public');
                 $data['foto_url'] = $path;
             }
@@ -61,7 +62,7 @@ class EmpleadoController extends Controller
 
     public function show(Empleado $empleado)
     {
-        // Cargamos también las asignaciones activas y los datos del activo para el Modal Ver
+        // Cargamos relaciones extra para el modal de Ver Detalles
         $empleado->load([
             'departamento', 
             'ubicacion', 
@@ -75,22 +76,22 @@ class EmpleadoController extends Controller
     public function update(Request $request, Empleado $empleado)
     {
         try {
-            // Validamos todo MENOS numero_empleado (es inmodificable)
             $request->validate([
                 'nombre' => 'required|string|max:100',
+                'apellido_paterno' => 'required|string|max:100',
                 'estatus' => 'required',
-                // Si el estatus es Baja, validamos motivo y fecha
-                'motivo_baja' => 'required_if:estatus,Baja',
-                'fecha_baja' => 'required_if:estatus,Baja|date|nullable',
-                'foto' => 'nullable|image|max:2048'
+                'foto' => 'nullable|image|max:2048',
+                // Validaciones condicionales para Baja
+                'fecha_baja' => 'required_if:estatus,Baja|nullable|date',
+                'motivo_baja' => 'required_if:estatus,Baja|nullable|string'
             ]);
 
-            // Excluimos numero_empleado para protegerlo
+            // Excluimos 'numero_empleado' para que no se modifique y 'foto' para tratarla manual
             $data = $request->except(['numero_empleado', 'foto']);
 
-            // Manejo de Foto (Reemplazo)
+            // Lógica de Foto (Reemplazo)
             if ($request->hasFile('foto')) {
-                // Borrar foto anterior si existe
+                // Borrar anterior si existe
                 if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
                     Storage::disk('public')->delete($empleado->foto_url);
                 }
@@ -103,7 +104,7 @@ class EmpleadoController extends Controller
                 $data['fecha_baja'] = $request->fecha_baja;
                 $data['motivo_baja'] = $request->motivo_baja;
             } else {
-                // Si lo reactivan, limpiamos datos de baja
+                // Si lo reactivan, limpiamos la baja
                 $data['fecha_baja'] = null;
                 $data['motivo_baja'] = null;
             }
@@ -122,33 +123,32 @@ class EmpleadoController extends Controller
         }
     }
 
+    // Generar PDF de historial
     public function generarHistorialPdf($id)
     {
         $empleado = Empleado::with([
             'departamento', 
             'ubicacion', 
             'puesto',
-            // Traemos TODAS las asignaciones (historial), ordenadas por fecha reciente
             'asignaciones' => function($query) {
                 $query->orderBy('fecha_asignacion', 'desc');
             },
             'asignaciones.activo.tipo',
             'asignaciones.activo.marca',
-            'asignaciones.estadoEntrega' // Para saber condición
+            'asignaciones.estadoEntrega'
         ])->findOrFail($id);
 
         $pdf = Pdf::loadView('pdf.historial_empleado', compact('empleado'));
         
-        // Configuramos papel carta vertical
         return $pdf->setPaper('letter', 'portrait')
-                   ->stream('Historial_Activos_' . $empleado->numero_empleado . '.pdf');
+                   ->stream('Historial_' . $empleado->numero_empleado . '.pdf');
     }
 
     public function destroy(Empleado $empleado)
     {
-        // Validar que no tenga activos asignados antes de borrar
+        // Validar que no tenga activos antes de borrar
         if($empleado->asignacionesActivas()->count() > 0){
-             return response()->json(['success' => false, 'message' => 'No se puede eliminar: El empleado tiene activos asignados.'], 422);
+             return response()->json(['success' => false, 'message' => 'No se puede eliminar: Tiene activos asignados.'], 422);
         }
 
         try {

@@ -1,0 +1,1 @@
+<img src="{{ asset('img/logo-ramagas.webp') }}" alt="Ramagas Logo" {{ $attributes }} style="max-height: 100px; width: auto;">

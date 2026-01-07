@@ -6,22 +6,21 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('usuarioroles', function (Blueprint $table) {
-            $table->char('usuario_id', 36);
-            $table->integer('rol_id')->index('rol_id');
+            // Relación con la nueva tabla de usuarios (Breeze)
+            $table->foreignId('usuario_id')->constrained('users')->onDelete('cascade');
+            
+            // Relación con la tabla de roles
+            $table->integer('rol_id');
+            $table->foreign('rol_id')->references('id')->on('roles')->onDelete('cascade');
 
+            // Llave primaria compuesta
             $table->primary(['usuario_id', 'rol_id']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('usuarioroles');

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Concerns\HasUuids; // Asegúrate de tener esto si usas UUIDs
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,9 +11,10 @@ class Asignacion extends Model
     use HasFactory, HasUuids;
 
     protected $table = 'asignacion';
-    public $timestamps = false; // La tabla no tiene created_at/updated_at estandar
+    public $timestamps = false;
 
     protected $fillable = [
+        'lote_id', // <--- NUEVO
         'fecha_asignacion',
         'fecha_devolucion',
         'observaciones_entrega',
@@ -31,23 +32,16 @@ class Asignacion extends Model
         'fecha_devolucion' => 'datetime'
     ];
 
-    public function activo()
-    {
-        return $this->belongsTo(Activo::class, 'activo_id');
-    }
+    // Relaciones existentes...
+    public function activo() { return $this->belongsTo(Activo::class, 'activo_id'); }
+    public function empleado() { return $this->belongsTo(Empleado::class, 'empleado_id'); }
+    public function estadoEntrega() { return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_entrega_id'); }
+    public function estadoDevolucion() { return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_devolucion_id'); }
 
-    public function empleado()
+    // Relación con Historial de Documentos
+    public function historialDocumentos()
     {
-        return $this->belongsTo(Empleado::class, 'empleado_id');
-    }
-
-    public function estadoEntrega()
-    {
-        return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_entrega_id');
-    }
-
-    public function estadoDevolucion()
-    {
-        return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_devolucion_id');
+        return $this->hasMany(AsignacionDocumentoHistorial::class, 'lote_id', 'lote_id'); 
+        // Nota: Relacionamos por lote para ver el historial de todo el grupo
     }
 }

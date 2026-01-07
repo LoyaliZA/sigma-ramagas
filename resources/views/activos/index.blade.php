@@ -318,8 +318,12 @@
                         <h6 class="text-primary text-uppercase small fw-bold mb-3">Datos Móviles</h6>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label small text-muted">IMEI</label>
-                                <input type="text" class="form-control" name="imei" id="imei" placeholder="15 dígitos">
+                                <label class="form-label">IMEI (15 dígitos)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                    <input type="text" class="form-control" id="editImei" name="imei" maxlength="15" pattern="\d{15}" 
+                                           oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);">
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small text-muted">Tamaño Pantalla</label>
@@ -523,14 +527,16 @@
             document.getElementById('condicion_id').value = data.condicion_id;
             
             document.getElementById('costo').value = data.costo;
+            // Manejo seguro de fechas para evitar error si vienen null
             document.getElementById('fecha_adquisicion').value = data.fecha_adquisicion ? data.fecha_adquisicion.substring(0,10) : '';
             document.getElementById('garantia_hasta').value = data.garantia_hasta ? data.garantia_hasta.substring(0,10) : '';
 
             // Cargar specs
             var specs = data.especificaciones || {};
             document.getElementById('cpu_modelo').value = specs.procesador || '';
-            document.getElementById('imei').value = specs.imei || '';
-            document.getElementById('pantalla_tamano').value = specs.pantalla || ''; // Nuevo campo
+            var inputImei = document.getElementById('editImei');
+            if(inputImei) inputImei.value = specs.imei || ''; 
+            document.getElementById('pantalla_tamano').value = specs.pantalla || ''; 
             document.getElementById('so_version').value = specs.sistema_operativo || '';
             document.getElementById('spec_otras').value = specs.otras || data.observaciones || '';
             
@@ -539,8 +545,6 @@
                 let partes = specs.ram.split(' '); 
                 if(partes.length >= 2) {
                     document.getElementById('ram_capacidad').value = partes[0];
-                    // La unidad y tipo son más complejos de parsear si no guardamos IDs, 
-                    // pero para edición básica esto ayuda.
                 }
             }
             if(specs.almacenamiento) {
@@ -550,6 +554,10 @@
 
             toggleFormulario(); // Para mostrar los campos correctos (pc o movil)
             modalForm.show();
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Error al cargar los datos del activo.");
         });
     }
 
