@@ -6,16 +6,21 @@ use App\Models\CatalogoDepartamento;
 use App\Models\CatalogoUbicacion;
 use App\Models\CatalogoPuesto;
 use App\Models\Empleado;
+use App\Models\EmpleadoContacto; // <--- [IMPORTANTE] Nuevo modelo
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage; // Importante para las fotos
-use Barryvdh\DomPDF\Facade\Pdf; // Importante para el PDF
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB; // <--- [IMPORTANTE] Para transacciones
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class EmpleadoController extends Controller
 {
     public function index()
     {
-        $empleados = Empleado::with(['departamento', 'ubicacion', 'puesto'])->orderBy('created_date', 'desc')->get();
+        $empleados = Empleado::with(['departamento', 'ubicacion', 'puesto'])
+                             ->orderBy('created_date', 'desc')
+                             ->get();
+
         $departamentos = CatalogoDepartamento::orderBy('nombre')->get();
         $ubicaciones = CatalogoUbicacion::orderBy('nombre')->get();
         $puestos = CatalogoPuesto::orderBy('nombre')->get();
@@ -26,36 +31,74 @@ class EmpleadoController extends Controller
     public function store(Request $request)
     {
         try {
-            $request->validate([
-                'numero_empleado' => 'required|string|max:50|unique:empleado',
-                'nombre' => 'required|string|max:100',
-                'apellido_paterno' => 'required|string|max:100',
-                'puesto_id' => 'required|integer',
-                'departamento_id' => 'required|integer',
-                'planta_id' => 'required|integer',
-                'estatus' => 'required',
-                'foto' => 'nullable|image|max:2048' // Max 2MB
-            ]);
+            return DB::transaction(function () use ($request) {
+                
+                $request->validate([
+                    // 'numero_empleado' => ... ELIMINADO (Lo generamos nosotros)
+                    'codigo_empresa'  => 'nullable|string|max:50|unique:empleado',
+                    'nombre' => 'required|string|max:100',
+                    'apellido_paterno' => 'required|string|max:100',
+                    'puesto_id' => 'required|integer',
+                    'departamento_id' => 'required|integer',
+                    'planta_id' => 'required|integer',
+                    'estatus' => 'required',
+                    'foto' => 'nullable|image|max:2048',
+                    'contactos' => 'nullable|array',
+                ]);
 
-            $data = $request->except('foto');
+                $data = $request->except('foto', 'contactos');
 
-            // Subida de Foto
-            if ($request->hasFile('foto')) {
-                // Guardar en storage/app/public/empleados (Requiere: php artisan storage:link)
-                $path = $request->file('foto')->store('empleados', 'public');
-                $data['foto_url'] = $path;
-            }
+                // --- LÓGICA DE AUTOGENERACIÓN (RMA-XXX) ---
+                // Buscamos el último que empiece con RMA-, ordenado por longitud y luego valor 
+                // para evitar problemas entre RMA-9 y RMA-10. Usamos lockForUpdate para evitar duplicados.
+                $ultimo = Empleado::where('numero_empleado', 'LIKE', 'RMA-%')
+                                  ->orderByRaw('LENGTH(numero_empleado) DESC')
+                                  ->orderBy('numero_empleado', 'DESC')
+                                  ->lockForUpdate()
+                                  ->first();
 
-            $empleado = Empleado::create($data);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Empleado creado exitosamente.',
-                'empleado' => $empleado->load(['departamento', 'ubicacion', 'puesto'])
-            ], 201);
+                $consecutivo = 1;
+                if ($ultimo) {
+                    // Extraemos los dígitos después del guion
+                    $partes = explode('-', $ultimo->numero_empleado);
+                    if (isset($partes[1]) && is_numeric($partes[1])) {
+                        $consecutivo = intval($partes[1]) + 1;
+                    }
+                }
+                
+                // Formateamos a 3 dígitos (001, 002...)
+                $data['numero_empleado'] = 'RMA-' . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
+                // ------------------------------------------
+
+                if ($request->hasFile('foto')) {
+                    $path = $request->file('foto')->store('empleados', 'public');
+                    $data['foto_url'] = $path;
+                }
+
+                $empleado = Empleado::create($data);
+
+                if ($request->has('contactos')) {
+                    foreach ($request->contactos as $contacto) {
+                        if (!empty($contacto['valor'])) {
+                            EmpleadoContacto::create([
+                                'empleado_id' => $empleado->id,
+                                'tipo' => $contacto['tipo'],
+                                'valor' => $contacto['valor'],
+                                'descripcion' => $contacto['descripcion'] ?? null,
+                            ]);
+                        }
+                    }
+                }
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Empleado creado: ' . $empleado->numero_empleado,
+                    'empleado' => $empleado->load(['departamento', 'ubicacion', 'puesto'])
+                ], 201);
+            });
 
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
+            Log::error("Error store empleado: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
@@ -67,6 +110,7 @@ class EmpleadoController extends Controller
             'departamento', 
             'ubicacion', 
             'puesto', 
+            'contactos', // [Nuevo] Cargamos los contactos extra
             'asignacionesActivas.activo.tipo', 
             'asignacionesActivas.activo.marca'
         ]);
@@ -83,10 +127,12 @@ class EmpleadoController extends Controller
                 'foto' => 'nullable|image|max:2048',
                 // Validaciones condicionales para Baja
                 'fecha_baja' => 'required_if:estatus,Baja|nullable|date',
-                'motivo_baja' => 'required_if:estatus,Baja|nullable|string'
+                'motivo_baja' => 'required_if:estatus,Baja|nullable|string',
+                // Validamos que el código de empresa sea único (excluyendo al empleado actual)
+                'codigo_empresa' => 'nullable|string|max:50|unique:empleado,codigo_empresa,' . $empleado->id,
             ]);
 
-            // Excluimos 'numero_empleado' para que no se modifique y 'foto' para tratarla manual
+            // Excluimos datos sensibles o manuales
             $data = $request->except(['numero_empleado', 'foto']);
 
             // Lógica de Foto (Reemplazo)
@@ -111,6 +157,9 @@ class EmpleadoController extends Controller
 
             $empleado->update($data);
 
+            // NOTA: La actualización de contactos se hará en un endpoint separado o 
+            // en una futura actualización del modal "Editar". Por ahora solo actualizamos datos base.
+
             return response()->json([
                 'success' => true,
                 'message' => 'Empleado actualizado exitosamente.',
@@ -130,6 +179,7 @@ class EmpleadoController extends Controller
             'departamento', 
             'ubicacion', 
             'puesto',
+            'contactos', // [Nuevo] Incluimos contactos en el reporte
             'asignaciones' => function($query) {
                 $query->orderBy('fecha_asignacion', 'desc');
             },
