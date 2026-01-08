@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids; // Asegúrate de tener esto si usas UUIDs
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,10 +11,12 @@ class Asignacion extends Model
     use HasFactory, HasUuids;
 
     protected $table = 'asignacion';
+    
+    // Tu tabla no usa timestamps estándar (created_at, updated_at)
     public $timestamps = false;
 
     protected $fillable = [
-        'lote_id', // <--- NUEVO
+        'lote_id',
         'fecha_asignacion',
         'fecha_devolucion',
         'observaciones_entrega',
@@ -27,21 +29,28 @@ class Asignacion extends Model
         'estado_devolucion_id'
     ];
 
+    // --- CORRECCIÓN PARA QUE LA HORA SE VEA BIEN ---
     protected $casts = [
         'fecha_asignacion' => 'datetime',
-        'fecha_devolucion' => 'datetime'
+        'fecha_devolucion' => 'datetime',
     ];
 
-    // Relaciones existentes...
-    public function activo() { return $this->belongsTo(Activo::class, 'activo_id'); }
-    public function empleado() { return $this->belongsTo(Empleado::class, 'empleado_id'); }
-    public function estadoEntrega() { return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_entrega_id'); }
-    public function estadoDevolucion() { return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_devolucion_id'); }
+    // --- RELACIONES CORRECTAS ---
+    
+    public function activo() {
+        return $this->belongsTo(Activo::class, 'activo_id');
+    }
 
-    // Relación con Historial de Documentos
-    public function historialDocumentos()
-    {
-        return $this->hasMany(AsignacionDocumentoHistorial::class, 'lote_id', 'lote_id'); 
-        // Nota: Relacionamos por lote para ver el historial de todo el grupo
+    public function empleado() {
+        return $this->belongsTo(Empleado::class, 'empleado_id');
+    }
+
+    // Aquí respetamos que usas CatalogoEstadoAsignacion
+    public function estadoEntrega() {
+        return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_entrega_id');
+    }
+
+    public function estadoDevolucion() {
+        return $this->belongsTo(CatalogoEstadoAsignacion::class, 'estado_devolucion_id');
     }
 }

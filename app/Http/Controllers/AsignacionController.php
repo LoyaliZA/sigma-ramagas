@@ -9,9 +9,9 @@ use App\Models\CatalogoEstadoAsignacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon; // IMPORTANTE: Agregamos Carbon
 
 class AsignacionController extends Controller
 {
@@ -70,6 +70,10 @@ class AsignacionController extends Controller
 
             $loteId = Str::uuid();
 
+            // --- CORRECCIÓN DE HORA ---
+            // Tomamos la fecha del input y le ponemos la hora actual
+            $fechaConHora = Carbon::parse($request->fecha_asignacion)->setTimeFrom(now());
+
             foreach ($request->activos as $activoId) {
                 $activo = Activo::lockForUpdate()->find($activoId);
                 
@@ -82,7 +86,7 @@ class AsignacionController extends Controller
                     'lote_id' => $loteId,
                     'empleado_id' => $request->empleado_id,
                     'activo_id' => $activoId,
-                    'fecha_asignacion' => $request->fecha_asignacion,
+                    'fecha_asignacion' => $fechaConHora, // Usamos la variable con hora
                     'estado_entrega_id' => $request->estado_entrega_id,
                     'observaciones_entrega' => $request->observaciones
                 ]);
@@ -106,6 +110,7 @@ class AsignacionController extends Controller
         }
     }
 
+    // ... (Métodos subirDocumento y obtenerHistorial se quedan igual) ...
     public function subirDocumento(Request $request)
     {
         $request->validate([
@@ -182,8 +187,11 @@ class AsignacionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Ya fue devuelto.'], 400);
             }
 
+            // --- CORRECCIÓN DE HORA EN DEVOLUCIÓN ---
+            $fechaDevolucionConHora = Carbon::parse($request->fecha_devolucion)->setTimeFrom(now());
+
             $asignacion->update([
-                'fecha_devolucion' => $request->fecha_devolucion,
+                'fecha_devolucion' => $fechaDevolucionConHora,
                 'estado_devolucion_id' => $request->estado_devolucion_id,
                 'observaciones_devolucion' => $request->observaciones
             ]);
@@ -201,6 +209,7 @@ class AsignacionController extends Controller
         }
     }
 
+    // ... (Métodos de imprimir se quedan igual) ...
     public function imprimirCartaPorLote($loteId)
     {
         $asignaciones = Asignacion::with(['activo.tipo', 'activo.marca', 'empleado.puesto', 'empleado.departamento', 'estadoEntrega'])
@@ -209,7 +218,6 @@ class AsignacionController extends Controller
         if($asignaciones->isEmpty()) abort(404);
 
         $empleado = $asignaciones->first()->empleado;
-        // Usa la misma vista 'carta_responsiva' (ahora adaptada a foreach)
         $pdf = Pdf::loadView('pdf.carta_responsiva', compact('asignaciones', 'empleado'));
         return $pdf->stream('Responsiva_Lote_' . substr($loteId,0,8) . '.pdf');
     }

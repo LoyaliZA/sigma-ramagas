@@ -394,6 +394,7 @@
     </div>
 </div>
 
+<!-- Modal Ver Activo 
 <div class="modal fade" id="modalVer" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content border-0 shadow">
@@ -407,7 +408,7 @@
             </div>
         </div>
     </div>
-</div>
+</div> -->
 
 <div class="modal fade" id="modalBaja" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -447,6 +448,13 @@
                 </div>
             </form>
         </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVer" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" id="modalVerContent">
+            </div>
     </div>
 </div>
 
@@ -589,95 +597,30 @@
         .catch(err => console.error(err));
     });
 
-    // --- VER DETALLES (DISEÑO NUEVO) ---
     function verActivo(id) {
-        fetch(`/activos/${id}`).then(res => res.json()).then(data => {
-            var specs = data.especificaciones || {};
-            var costo = data.costo ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(data.costo) : 'No registrado';
-            var fechaAdq = data.fecha_adquisicion ? new Date(data.fecha_adquisicion + 'T00:00:00').toLocaleDateString('es-MX', {year: 'numeric', month: 'long', day: 'numeric'}) : '-';
-            var garantia = data.garantia_hasta ? new Date(data.garantia_hasta + 'T00:00:00').toLocaleDateString('es-MX', {year: 'numeric', month: 'long', day: 'numeric'}) : 'Sin garantía';
-            
-            // Fecha Registro
-            var fechaReg = data.created_date ? new Date(data.created_date).toLocaleDateString('es-MX', {year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : '-';
+        var modalEl = document.getElementById('modalVer');
+        var modal = new bootstrap.Modal(modalEl);
+        var contentEl = document.getElementById('modalVerContent');
 
-            var badgeClass = 'bg-secondary';
-            if(data.estado_id == 1) badgeClass = 'bg-success'; 
-            if(data.estado_id == 2) badgeClass = 'bg-primary'; 
-            if(data.estado_id == 3) badgeClass = 'bg-warning text-dark'; 
+        // 1. Mostrar spinner de carga
+        contentEl.innerHTML = `
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted small">Cargando ficha técnica...</p>
+            </div>`;
+        modal.show();
 
-            var html = `
-                <div class="container-fluid px-0">
-                    <div class="card border-0 shadow-sm mb-4">
-                        <div class="card-body">
-                            <h6 class="text-primary fw-bold mb-3"><i class="bi bi-box-seam me-2"></i>Información Principal</h6>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Número de Serie</small>
-                                    <span class="fw-bold text-dark fs-5">${data.numero_serie}</span>
-                                    <div class="small text-primary fw-bold mt-1">${data.codigo_interno}</div>
-                                </div>
-                                <div class="col-md-6 text-end">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Tipo</small>
-                                    <span class="fs-5">${data.tipo?.nombre || 'N/A'}</span>
-                                </div>
-                                <div class="col-12"><hr class="my-1 text-muted opacity-25"></div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Marca</small>
-                                    <span class="fw-medium">${data.marca?.nombre || '-'}</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Modelo</small>
-                                    <span class="fw-medium">${data.modelo || '-'}</span>
-                                </div>
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Estado</small>
-                                    <span class="badge ${badgeClass} px-3 py-2 rounded-pill">${data.estado?.nombre || '-'}</span>
-                                </div>
-                                 <div class="col-md-12 mt-3">
-                                    <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Ubicación</small>
-                                    <div class="d-flex align-items-center mt-1">
-                                        <div class="icon-box bg-soft-primary rounded-circle me-2" style="width:30px; height:30px; font-size: 0.8rem;"><i class="bi bi-geo-alt-fill"></i></div>
-                                        <span class="fw-medium">${data.ubicacion?.nombre || '-'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    ${(specs.procesador || specs.ram || specs.imei || specs.pantalla) ? `
-                    <div class="card border-0 shadow-sm mb-4">
-                        <div class="card-body">
-                            <h6 class="text-dark fw-bold mb-3"><i class="bi bi-cpu me-2"></i>Especificaciones</h6>
-                            <div class="row g-3">
-                                ${specs.procesador ? `<div class="col-md-6"><small class="text-muted d-block">Procesador</small><span class="fw-medium text-dark">${specs.procesador}</span></div>` : ''}
-                                ${specs.ram ? `<div class="col-md-6"><small class="text-muted d-block">RAM</small><span class="fw-medium text-dark">${specs.ram}</span></div>` : ''}
-                                ${specs.almacenamiento ? `<div class="col-md-6"><small class="text-muted d-block">Almacenamiento</small><span class="fw-medium text-dark">${specs.almacenamiento}</span></div>` : ''}
-                                ${specs.imei ? `<div class="col-md-6"><small class="text-muted d-block">IMEI</small><span class="font-monospace bg-light px-2 py-1 rounded text-dark">${specs.imei}</span></div>` : ''}
-                                ${specs.pantalla ? `<div class="col-md-6"><small class="text-muted d-block">Pantalla</small><span>${specs.pantalla}</span></div>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body">
-                            <h6 class="text-dark fw-bold mb-3"><i class="bi bi-calendar-check me-2"></i>Historial & Finanzas</h6>
-                            <div class="row g-3">
-                                <div class="col-md-6"><small class="text-muted d-block">Adquisición</small><span class="fw-bold">${fechaAdq}</span></div>
-                                <div class="col-md-6"><small class="text-muted d-block">Costo</small><span class="fw-bold text-success">${costo}</span></div>
-                                <div class="col-md-12"><small class="text-muted d-block">Registrado en Sistema</small><span class="fw-medium text-primary">${fechaReg}</span></div>
-                            </div>
-                             ${(specs.otras || data.observaciones) ? `
-                            <div class="col-12 mt-3 pt-3 border-top">
-                                <small class="text-muted d-block mb-1">Observaciones</small>
-                                <p class="text-dark small mb-0 bg-light p-2 rounded">${specs.otras || data.observaciones}</p>
-                            </div>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.getElementById('verContent').innerHTML = html;
-            modalVer.show();
+        // 2. Pedir la VISTA HTML al controlador
+        fetch(`/activos/${id}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.text()) // IMPORTANTE: Pedimos Texto/HTML, no JSON
+        .then(html => {
+            contentEl.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            contentEl.innerHTML = `<div class="modal-body text-center text-danger py-5">Error al cargar datos.</div>`;
         });
     }
 

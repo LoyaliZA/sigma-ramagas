@@ -13,44 +13,51 @@ class SeguimientoController extends Controller
         $limit = $request->input('limit', 10);
         $busqueda = $request->get('q');
         
-        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado']);
+        // 1. KPIs (Resumen Superior)
+        $kpis = [
+            'total_rastreados' => Activo::where('estado_id', '!=', 6)->count(),
+            'en_uso' => Activo::where('estado_id', 2)->count(),
+            'disponibles' => Activo::where('estado_id', 1)->count(),
+            'mantenimiento' => Activo::whereIn('estado_id', [3, 4])->count(),
+        ];
+
+        // 2. Consulta Principal (Busca Activos)
+        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado'])
+                        ->where('estado_id', '!=', 6); // Excluir bajas definitivas
 
         if ($busqueda) {
             $query->where(function($q) use ($busqueda) {
                 $q->where('numero_serie', 'like', "%$busqueda%")
                   ->orWhere('modelo', 'like', "%$busqueda%")
-                  ->orWhereHas('marca', function($qMarca) use ($busqueda) {
-                      $qMarca->where('nombre', 'like', "%$busqueda%");
-                  })
-                  ->orWhereHas('tipo', function($qTipo) use ($busqueda) {
-                      $qTipo->where('nombre', 'like', "%$busqueda%");
-                  });
+                  ->orWhere('codigo_interno', 'like', "%$busqueda%") // Agregué búsqueda por código interno
+                  ->orWhereHas('marca', fn($qM) => $qM->where('nombre', 'like', "%$busqueda%"))
+                  ->orWhereHas('tipo', fn($qT) => $qT->where('nombre', 'like', "%$busqueda%"))
+                  // Búsqueda por empleado actual
+                  ->orWhereHas('empleado', fn($qE) => $qE->where('nombre', 'like', "%$busqueda%")->orWhere('apellido_paterno', 'like', "%$busqueda%"));
             });
         }
 
-        // Ejecutamos la paginación PRIMERO para obtener los resultados y el conteo real
-        // Esto evita errores por reutilizar el $query después de un count() manual.
-        $activos = $query->orderBy('created_date', 'desc')
+        $activos = $query->orderBy('updated_date', 'desc')
                          ->paginate($limit)
                          ->appends($request->query());
 
-        // Truco UX: Si hay búsqueda y el total de resultados es exactamente 1, redirigimos.
-        // Usamos $activos->total() que ya viene de la paginación.
+        // Redirección directa si es resultado único (UX Pro)
         if ($busqueda && $activos->total() == 1) {
-            // Obtenemos el ID del primer elemento de la colección actual
             return redirect()->route('seguimiento.show', $activos->items()[0]->id);
         }
 
-        return view('seguimiento.index', compact('activos', 'busqueda', 'limit'));
+        return view('seguimiento.index', compact('activos', 'busqueda', 'limit', 'kpis'));
     }
 
     public function show($id)
     {
-        $activo = Activo::with(['tipo', 'marca', 'ubicacion', 'estado', 'condicion'])
+        // Carga del Activo
+        $activo = Activo::with(['tipo', 'marca', 'ubicacion', 'estado', 'condicion', 'empleado.puesto', 'empleado.departamento'])
                     ->findOrFail($id);
 
-        // AGREGADO: 'empleado.puesto' para que la vista tenga el dato listo y no falle.
-        $historial = Asignacion::with(['empleado.departamento', 'empleado.puesto', 'estadoEntrega', 'estadoDevolucion'])
+        // Carga del Historial (Asignaciones)
+        // Usamos las relaciones correctas de tu modelo Asignacion
+        $historial = Asignacion::with(['empleado', 'estadoEntrega', 'estadoDevolucion'])
                         ->where('activo_id', $id)
                         ->orderBy('fecha_asignacion', 'desc')
                         ->get();

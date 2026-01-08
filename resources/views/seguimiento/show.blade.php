@@ -4,49 +4,55 @@
 
 @section('content')
 <div class="container-fluid p-4">
-    <a href="{{ route('seguimiento.index') }}" class="btn btn-link text-decoration-none mb-3 ps-0 text-muted">
-        <i class="bi bi-arrow-left"></i> Volver a buscar
-    </a>
+    <div class="mb-4">
+        <a href="{{ route('seguimiento.index') }}" class="text-decoration-none text-muted small fw-bold">
+            <i class="bi bi-arrow-left me-1"></i> VOLVER AL BUSCADOR
+        </a>
+    </div>
 
     <div class="row g-4">
         <div class="col-lg-4">
-            <div class="card shadow border-0 sticky-top" style="top: 20px; z-index: 1;">
+            <div class="card border-0 shadow-sm sticky-top" style="top: 20px;">
                 <div class="card-body text-center pt-5 pb-4">
-                    <div class="avatar-circle bg-light text-primary mb-3 mx-auto d-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; font-size: 32px;">
-                        <i class="bi bi-laptop"></i>
+                    <div class="avatar-lg bg-soft-primary text-primary mx-auto rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 80px; height: 80px; font-size: 2rem;">
+                        <i class="bi bi-qr-code"></i>
                     </div>
-                    <h4 class="fw-bold text-gray-800">{{ $activo->numero_serie }}</h4>
-                    <p class="text-muted mb-2">{{ $activo->tipo?->nombre }} {{ $activo->marca?->nombre }}</p>
+                    <h5 class="fw-bold text-gray-800 mb-1">{{ $activo->numero_serie }}</h5>
+                    <p class="text-muted mb-3">{{ $activo->tipo->nombre }} {{ $activo->marca->nombre }}</p>
                     
-                    <span class="badge bg-{{ $activo->estado_id == 1 ? 'success' : ($activo->estado_id == 2 ? 'primary' : 'secondary') }} px-3 py-2 rounded-pill">
-                        {{ $activo->estado?->nombre ?? 'N/A' }}
+                    <span class="badge bg-{{ $activo->estado_id == 1 ? 'success' : ($activo->estado_id == 2 ? 'primary' : 'warning') }} rounded-pill px-3 py-2 mb-4">
+                        {{ $activo->estado->nombre ?? 'Desconocido' }}
                     </span>
-                </div>
-                <div class="card-footer bg-white border-top-0 p-4">
-                    <h6 class="text-uppercase text-xs font-weight-bold text-muted mb-3">Detalles Técnicos</h6>
+
+                    <div class="text-start bg-light p-3 rounded border">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="small text-muted">Modelo:</span>
+                            <span class="small fw-bold">{{ $activo->modelo }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="small text-muted">Código:</span>
+                            <span class="small fw-bold">{{ $activo->codigo_interno ?? 'S/N' }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="small text-muted">Ubicación:</span>
+                            <span class="small fw-bold">{{ $activo->ubicacion->nombre ?? 'N/A' }}</span>
+                        </div>
+                    </div>
                     
-                    <div class="d-flex justify-content-between mb-2 small">
-                        <span>Modelo:</span>
-                        <span class="fw-bold">{{ $activo->modelo }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 small">
-                        <span>Ubicación:</span>
-                        <span class="fw-bold">{{ $activo->ubicacion?->nombre ?? '-' }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2 small">
-                        <span>Condición:</span>
-                        <span class="fw-bold">{{ $activo->condicion?->nombre ?? '-' }}</span>
-                    </div>
-                    
-                    @if(is_array($activo->especificaciones) || is_object($activo->especificaciones))
-                    <hr class="my-3">
-                    <div class="small text-muted bg-light p-3 rounded">
-                        @foreach($activo->especificaciones as $k => $v)
-                            <div class="d-flex justify-content-between">
-                                <span class="text-capitalize">{{ $k }}:</span>
-                                <strong class="text-dark">{{ $v }}</strong>
+                    @if($activo->empleado)
+                    <div class="mt-3 text-start bg-soft-primary p-3 rounded border border-primary-subtle">
+                        <label class="small text-primary fw-bold text-uppercase mb-2">Asignado Actualmente</label>
+                        <div class="d-flex align-items-center">
+                            <div class="avatar-xs bg-white text-primary rounded-circle me-2 d-flex align-items-center justify-content-center shadow-sm" style="width: 32px; height: 32px;">
+                                <i class="bi bi-person-fill"></i>
                             </div>
-                        @endforeach
+                            <div>
+                                <h6 class="mb-0 fw-bold text-dark small">{{ $activo->empleado->nombre }} {{ $activo->empleado->apellido_paterno }}</h6>
+                                <small class="text-muted" style="font-size: 0.7rem;">
+                                    {{ $activo->empleado->puesto->nombre ?? 'Empleado' }}
+                                </small>
+                            </div>
+                        </div>
                     </div>
                     @endif
                 </div>
@@ -54,87 +60,86 @@
         </div>
 
         <div class="col-lg-8">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4 class="text-gray-800 mb-0">Línea de Tiempo</h4>
-                <span class="badge bg-secondary">{{ $historial->count() }} eventos</span>
-            </div>
-
-            @if($historial->isEmpty())
-                <div class="text-center py-5 text-muted bg-light rounded border border-dashed">
-                    <i class="bi bi-clock-history fs-1 mb-3 d-block"></i>
-                    Este activo es nuevo o nunca ha sido asignado.
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-clock-history me-2"></i>Línea de Tiempo de Asignaciones</h6>
                 </div>
-            @else
-                <div class="timeline-container">
-                    @foreach($historial as $h)
-                    <div class="card mb-4 border-0 shadow-sm position-relative">
-                        <div class="position-absolute start-0 top-0 bottom-0 rounded-start" 
-                             style="width: 5px; background-color: {{ $h->fecha_devolucion ? '#6c757d' : '#4e73df' }};"></div>
-                        
-                        <div class="card-body ps-4">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h5 class="fw-bold text-primary mb-1">
-                                        {{ $h->empleado?->nombre }} {{ $h->empleado?->apellido_paterno }}
-                                    </h5>
-                                    <p class="text-muted small mb-0">
-                                        {{ $h->empleado?->puesto?->nombre ?? 'Puesto no def.' }} 
-                                        <span class="mx-1">•</span> 
-                                        {{ $h->empleado?->departamento?->nombre ?? '' }}
-                                    </p>
-                                </div>
-                                <span class="badge {{ $h->fecha_devolucion ? 'bg-secondary' : 'bg-success' }}">
-                                    {{ $h->fecha_devolucion ? 'Finalizado' : 'Vigente' }}
-                                </span>
-                            </div>
+                <div class="card-body">
+                    @if($historial->count() > 0)
+                        <div class="timeline">
+                            @foreach($historial as $index => $h)
+                                <div class="timeline-item pb-4 ps-4 border-start {{ $loop->last ? 'border-transparent' : 'border-2' }} position-relative" style="border-color: #e9ecef;">
+                                    
+                                    <div class="position-absolute top-0 start-0 translate-middle rounded-circle bg-white border border-2 {{ $h->fecha_devolucion ? 'border-secondary' : 'border-success' }} d-flex align-items-center justify-content-center" style="width: 16px; height: 16px;"></div>
 
-                            <hr class="my-3">
-
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="d-flex">
-                                        <div class="me-3 text-success fs-4"><i class="bi bi-box-arrow-right"></i></div>
-                                        <div>
-                                            <small class="text-muted d-block">Fecha de Asignación</small>
-                                            <span class="fw-bold">{{ \Carbon\Carbon::parse($h->fecha_asignacion)->format('d/m/Y h:i A') }}</span>
-                                            <div class="small text-success mt-1">
-                                                Condición: {{ $h->estadoEntrega?->nombre ?? 'N/A' }}
+                                    <div class="card border bg-light shadow-sm ms-2">
+                                        <div class="card-body p-3">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <div>
+                                                    <h6 class="fw-bold text-primary mb-0">
+                                                        {{ $h->empleado->nombre ?? 'Usuario' }} {{ $h->empleado->apellido_paterno ?? '' }}
+                                                    </h6>
+                                                    <small class="text-muted">{{ $h->empleado->departamento->nombre ?? 'General' }}</small>
+                                                </div>
+                                                
+                                                <div class="text-end">
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Asignado</span>
+                                                    <div class="small fw-bold mt-1 text-dark">
+                                                        {{ $h->fecha_asignacion ? $h->fecha_asignacion->format('d M Y') : 'N/A' }}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        {{ $h->fecha_asignacion ? $h->fecha_asignacion->format('h:i A') : '--:--' }}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            @if($h->observaciones_entrega)
-                                                <div class="small text-muted mt-1 fst-italic">"{{ $h->observaciones_entrega }}"</div>
+
+                                            @if($h->carta_responsiva_url)
+                                                <div class="mb-2">
+                                                    <a href="{{ Storage::url($h->carta_responsiva_url) }}" target="_blank" class="btn btn-xs btn-outline-primary py-0" style="font-size: 0.75rem;">
+                                                        <i class="bi bi-file-earmark-pdf me-1"></i>Ver Responsiva
+                                                    </a>
+                                                </div>
+                                            @endif
+
+                                            @if($h->fecha_devolucion)
+                                                <div class="mt-3 pt-3 border-top">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <small class="text-uppercase text-muted fw-bold" style="font-size: 0.7rem;">Devuelto el:</small>
+                                                            <div class="fw-medium text-dark">
+                                                                {{ $h->fecha_devolucion->format('d M Y, h:i A') }}
+                                                            </div>
+                                                            <div class="small text-secondary">
+                                                                Condición: {{ $h->estadoDevolucion->nombre ?? 'N/A' }}
+                                                            </div>
+                                                        </div>
+                                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Finalizado</span>
+                                                    </div>
+                                                    
+                                                    @if($h->observaciones_devolucion)
+                                                        <div class="mt-2 p-2 bg-white rounded border small text-muted fst-italic">
+                                                            "{{ $h->observaciones_devolucion }}"
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="mt-2 text-success small fw-bold">
+                                                    <i class="bi bi-circle-fill me-1" style="font-size: 6px; vertical-align: middle;"></i> Activo Actualmente
+                                                </div>
                                             @endif
                                         </div>
                                     </div>
                                 </div>
-
-                                <div class="col-md-6 border-start">
-                                    @if($h->fecha_devolucion)
-                                        <div class="d-flex ps-3">
-                                            <div class="me-3 text-secondary fs-4"><i class="bi bi-box-arrow-in-left"></i></div>
-                                            <div>
-                                                <small class="text-muted d-block">Fecha de Devolución</small>
-                                                <span class="fw-bold">{{ \Carbon\Carbon::parse($h->fecha_devolucion)->format('d/m/Y h:i A') }}</span>
-                                                <div class="small text-secondary mt-1">
-                                                    Condición: {{ $h->estadoDevolucion?->nombre ?? 'N/A' }}
-                                                </div>
-                                                @if($h->observaciones_devolucion)
-                                                    <div class="small text-muted mt-1 fst-italic">"{{ $h->observaciones_devolucion }}"</div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @else
-                                        <div class="d-flex ps-3 align-items-center h-100 text-success bg-light rounded ms-2">
-                                            <i class="bi bi-check-circle-fill me-2"></i>
-                                            <span class="fw-medium">Actualmente en uso</span>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
+                            @endforeach
                         </div>
-                    </div>
-                    @endforeach
+                    @else
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-1 opacity-50"></i>
+                            <p class="mt-3">Este activo no tiene historial de asignaciones registrado.</p>
+                        </div>
+                    @endif
                 </div>
-            @endif
+            </div>
         </div>
     </div>
 </div>

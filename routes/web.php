@@ -59,11 +59,12 @@ Route::middleware(['auth'])->group(function () {
         // Nota: Si Admin NO debe editar, habría que restringir 'edit' y 'update' también.
         // Por simplicidad, aquí dejamos el resource, pero protegemos la ruta 'destroy' abajo.
         Route::resource('empleados', EmpleadoController::class)->except(['destroy']);
-        Route::resource('activos', ActivoController::class)->except(['destroy', 'darBaja']);
+        
         
         Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
         Route::get('/activos/bajas', [ActivoController::class, 'bajas'])->name('activos.bajas');
         Route::post('activos/quick-add-catalogo', [ActivoController::class, 'storeCatalogo'])->name('activos.quick_add');
+        Route::resource('activos', ActivoController::class)->except(['destroy', 'darBaja']);
     });
 
 

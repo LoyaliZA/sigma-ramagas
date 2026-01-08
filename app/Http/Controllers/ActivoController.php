@@ -165,10 +165,19 @@ class ActivoController extends Controller
         }
     }
 
-    public function show(Activo $activo)
+    // Busca la función 'show' y cámbiala por esta:
+    public function show(Request $request, $id)
     {
-        // Cargamos motivoBaja para ver detalles en el historial si ya "murió"
-        return response()->json($activo->load(['tipo', 'marca', 'estado', 'ubicacion', 'motivoBaja']));
+        // 1. Cargamos las relaciones (incluyendo 'empleado' que acabamos de arreglar)
+        $activo = Activo::with(['tipo', 'marca', 'estado', 'ubicacion', 'empleado', 'motivoBaja'])->findOrFail($id);
+
+        // 2. Si la petición viene del Modal (AJAX), devolvemos el HTML pintado
+        if ($request->ajax()) {
+            return view('activos.modal_ver', compact('activo'))->render();
+        }
+
+        // 3. Si no es AJAX, devolvemos JSON (por compatibilidad)
+        return response()->json($activo);
     }
 
     public function update(Request $request, Activo $activo)
