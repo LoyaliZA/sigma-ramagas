@@ -115,7 +115,8 @@ class AsignacionController extends Controller
     {
         $request->validate([
             'asignacion_id' => 'required|exists:asignacion,id',
-            'documento' => 'required|file|mimes:pdf,jpg,png|max:5120'
+            // CAMBIO AQUÍ: max:1024 equivale a 1 Megabyte
+            'documento' => 'required|file|mimes:pdf,jpg,png|max:1024' 
         ]);
 
         try {
@@ -174,8 +175,9 @@ class AsignacionController extends Controller
     public function devolver(Request $request, $id)
     {
         try {
+            // 1. Quitamos 'fecha_devolucion' de la validación porque ya no la recibiremos del usuario
             $request->validate([
-                'fecha_devolucion' => 'required|date',
+                // 'fecha_devolucion' => 'required|date',  <-- ELIMINADO
                 'estado_devolucion_id' => 'required|exists:catalogo_estadosasignacion,id',
                 'observaciones' => 'nullable|string'
             ]);
@@ -187,21 +189,23 @@ class AsignacionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Ya fue devuelto.'], 400);
             }
 
-            // --- CORRECCIÓN DE HORA EN DEVOLUCIÓN ---
-            $fechaDevolucionConHora = Carbon::parse($request->fecha_devolucion)->setTimeFrom(now());
+            // 2. FORZAMOS LA FECHA ACTUAL DEL SERVIDOR (now())
+            // Ya no usamos $request->fecha_devolucion
+            $fechaDevolucionExacta = now(); 
 
             $asignacion->update([
-                'fecha_devolucion' => $fechaDevolucionConHora,
+                'fecha_devolucion' => $fechaDevolucionExacta,
                 'estado_devolucion_id' => $request->estado_devolucion_id,
                 'observaciones_devolucion' => $request->observaciones
             ]);
 
             $activo = Activo::find($asignacion->activo_id);
-            $activo->estado_id = ($request->estado_devolucion_id == 1) ? 1 : 4;
+            // Lógica de estado del activo (Disponible o Diagnóstico)
+            $activo->estado_id = ($request->estado_devolucion_id == 1) ? 1 : 4; 
             $activo->save();
 
             DB::commit();
-            return response()->json(['success' => true, 'message' => 'Devolución procesada.']);
+            return response()->json(['success' => true, 'message' => 'Devolución procesada correctamente.']);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -225,7 +229,7 @@ class AsignacionController extends Controller
     public function imprimirCarta($id)
     {
         $asignacion = Asignacion::with(['activo.tipo', 'activo.marca', 'empleado.puesto', 'empleado.departamento', 'estadoEntrega'])
-                      ->findOrFail($id);
+                    ->findOrFail($id);
         
         $asignaciones = collect([$asignacion]); 
         $empleado = $asignacion->empleado;
@@ -237,7 +241,7 @@ class AsignacionController extends Controller
     public function imprimirCartaDevolucion($id)
     {
         $asignacion = Asignacion::with(['activo.tipo', 'activo.marca', 'empleado.departamento', 'estadoDevolucion'])
-                      ->findOrFail($id);
+                    ->findOrFail($id);
         
         if (!$asignacion->fecha_devolucion) return back()->with('error', 'No devuelto aún.');
 

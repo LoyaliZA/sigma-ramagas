@@ -23,7 +23,7 @@ class ActivoController extends Controller
 {
     public function index(Request $request)
     {
-        // ... (Tu código del index está bien, no cambia) ...
+        // ... (KPIs y Query principal están bien) ...
         $kpiTotal = Activo::where('estado_id', '!=', 6)->count();
         $kpiEnUso = Activo::where('estado_id', 2)->count();
         $kpiDisponibles = Activo::where('estado_id', 1)->count();
@@ -50,11 +50,21 @@ class ActivoController extends Controller
         $limit = $request->input('limit', 10);
         $activos = $query->orderBy('created_date', 'desc')->paginate($limit)->appends($request->query());
 
+        // --- AQUÍ ESTÁ EL FILTRO CORRECTO ---
+        $condiciones = CatalogoCondicion::whereIn('nombre', [
+            'Nuevo',
+            'Funcional',
+            'Detalles estéticos'
+        ])->orderBy('nombre')->get();
+
         $tipos = CatalogoTipoActivo::orderBy('nombre')->get();
         $marcas = CatalogoMarca::orderBy('nombre')->get();
         $estados = CatalogoEstadoActivo::where('id', '!=', 6)->orderBy('nombre')->get();
         $ubicaciones = CatalogoUbicacion::orderBy('nombre')->get();
-        $condiciones = CatalogoCondicion::orderBy('nombre')->get();
+        
+        // BORRAR ESTA LÍNEA (Aquí estaba el error, la estabas sobrescribiendo):
+        // $condiciones = CatalogoCondicion::orderBy('nombre')->get(); 
+
         $tiposRam = CatalogoTipoRam::orderBy('nombre')->get();
         $tiposDisco = CatalogoTipoAlmacenamiento::orderBy('nombre')->get();
         $motivosBaja = CatalogoMotivoBaja::orderBy('nombre')->get();
@@ -66,7 +76,7 @@ class ActivoController extends Controller
             'marcas',
             'estados',
             'ubicaciones',
-            'condiciones',
+            'condiciones', // Ahora sí pasará la variable filtrada
             'tiposRam',
             'tiposDisco',
             'motivosBaja',
