@@ -22,10 +22,10 @@
                                 <div class="col-md-4">
                                     <label class="form-label">No. Sistema <i class="fas fa-lock text-muted small"></i></label>
                                     <input type="text" class="form-control bg-light" 
-                                        name="numero_empleado" 
-                                        placeholder="Automático (RMA-XXX)" 
-                                        readonly 
-                                        style="cursor: not-allowed;">
+                                           name="numero_empleado" 
+                                           placeholder="Automático (RMA-XXX)" 
+                                           readonly 
+                                           style="cursor: not-allowed;">
                                     <div class="form-text small text-muted">Se generará al guardar.</div>
                                 </div>
                                 <div class="col-md-4">
@@ -101,7 +101,7 @@
                         </button>
                     </div>
                     <div class="alert alert-light border p-2 mb-2" style="font-size: 0.9em;">
-                        <i class="fas fa-info-circle text-muted"></i> Agregue teléfonos, celulares o correos personales aquí.
+                        <i class="fas fa-info-circle text-muted"></i> Seleccione el tipo de contacto para validar el formato (10 dígitos para teléfonos).
                     </div>
                     
                     <div id="contenedor-contactos">
@@ -120,34 +120,64 @@
 <script>
     function agregarFilaContacto() {
         const contenedor = document.getElementById('contenedor-contactos');
-        const index = contenedor.children.length; // Indice único
+        const index = contenedor.children.length; 
         
         const html = `
             <div class="row g-2 mb-2 align-items-end fila-contacto">
                 <div class="col-3">
                     <label class="form-label small text-muted mb-0">Tipo</label>
-                    <select class="form-select form-select-sm" name="contactos[${index}][tipo]" required>
+                    <select class="form-select form-select-sm" name="contactos[${index}][tipo]" required onchange="ajustarInputContacto(this)">
                         <option value="Telefono">Teléfono</option>
                         <option value="Celular">Celular</option>
                         <option value="Correo">Correo Alterno</option>
-                        <option value="Emergencia">Emergencia</option>
+                        <option value="Contacto de Emergencia">Contacto de Emergencia</option>
                     </select>
                 </div>
                 <div class="col-4">
                     <label class="form-label small text-muted mb-0">Dato / Número</label>
-                    <input type="text" class="form-control form-control-sm" name="contactos[${index}][valor]" required placeholder="Ej: 993..." >
+                    <input type="text" class="form-control form-control-sm input-valor" 
+                           name="contactos[${index}][valor]" required 
+                           placeholder="10 dígitos"
+                           maxlength="10" 
+                           oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                 </div>
                 <div class="col-4">
                     <label class="form-label small text-muted mb-0">Descripción</label>
-                    <input type="text" class="form-control form-control-sm" name="contactos[${index}][descripcion]" placeholder="Ej: Personal">
+                    <input type="text" class="form-control form-control-sm" name="contactos[${index}][descripcion]" placeholder="Ej: Personal, Mamá...">
                 </div>
                 <div class="col-1 text-center">
-                    <button type="button" class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('.fila-contacto').remove()">
-                        <i class="fas fa-times"></i>
+                    <button type="button" class="btn btn-sm btn-outline-danger border-0" title="Eliminar este contacto" onclick="this.closest('.fila-contacto').remove()">
+                        <i class="bi bi-trash"></i>
                     </button>
                 </div>
             </div>
         `;
         contenedor.insertAdjacentHTML('beforeend', html);
+    }
+
+    function ajustarInputContacto(select) {
+        const row = select.closest('.fila-contacto');
+        const input = row.querySelector('.input-valor');
+        const tipo = select.value;
+
+        // Resetear validaciones
+        input.value = ''; 
+        input.removeAttribute('maxlength');
+        input.removeAttribute('oninput');
+        input.type = 'text';
+
+        if (tipo === 'Telefono' || tipo === 'Celular' || tipo === 'Contacto de Emergencia') {
+            input.placeholder = '10 dígitos';
+            input.setAttribute('maxlength', '10');
+            // Regex para solo números
+            input.setAttribute('oninput', "this.value = this.value.replace(/[^0-9]/g, '')");
+        } 
+        else if (tipo === 'Correo' || tipo === 'Correo Alterno') {
+            input.placeholder = 'ejemplo@correo.com';
+            input.type = 'email';
+        } 
+        else {
+            input.placeholder = 'Dato...';
+        }
     }
 </script>

@@ -12,6 +12,7 @@
         th, td { border: 1px solid #ddd; padding: 5px; text-align: left; }
         th { background-color: #f8f9fa; font-weight: bold; }
         .footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 9px; text-align: center; color: #999; border-top: 1px solid #ddd; padding-top: 5px; }
+        .badge-contact { background: #eee; padding: 2px 5px; border-radius: 3px; margin-right: 5px; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -26,8 +27,8 @@
         <tr>
             <th width="20%">No. Empleado</th>
             <td width="30%">{{ $empleado->numero_empleado }}</td>
-            <th width="20%">Estatus</th>
-            <td width="30%">{{ $empleado->estatus }}</td>
+            <th width="20%">Cód. Empresa</th>
+            <td width="30%">{{ $empleado->codigo_empresa ?? 'N/A' }}</td>
         </tr>
         <tr>
             <th>Nombre</th>
@@ -39,6 +40,27 @@
             <th>Departamento</th>
             <td>{{ $empleado->departamento->nombre ?? 'N/A' }}</td>
         </tr>
+        <tr>
+            <th>Estatus</th>
+            <td>{{ $empleado->estatus }}</td>
+            <th>Fecha Ingreso</th>
+            <td>{{ $empleado->fecha_ingreso ? \Carbon\Carbon::parse($empleado->fecha_ingreso)->format('d/m/Y') : 'N/A' }}</td>
+        </tr>
+
+        {{-- SECCIÓN DE CONTACTOS DINÁMICOS --}}
+        @if($empleado->contactos->count() > 0)
+        <tr>
+            <th>Contactos</th>
+            <td colspan="3">
+                @foreach($empleado->contactos as $contacto)
+                    <span class="badge-contact">
+                        <b>{{ $contacto->tipo }}:</b> {{ $contacto->valor }}
+                    </span>
+                @endforeach
+            </td>
+        </tr>
+        @endif
+
         @if($empleado->estatus == 'Baja')
         <tr>
             <th style="color:red;">Fecha Baja</th>

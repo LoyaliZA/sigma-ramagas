@@ -6,11 +6,12 @@ use App\Models\CatalogoDepartamento;
 use App\Models\CatalogoUbicacion;
 use App\Models\CatalogoPuesto;
 use App\Models\Empleado;
-use App\Models\EmpleadoContacto; // <--- [IMPORTANTE] Nuevo modelo
+use App\Models\EmpleadoContacto;
+use App\Models\EmpleadoDocumento; // <--- [NUEVO] Importado
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB; // <--- [IMPORTANTE] Para transacciones
+use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class EmpleadoController extends Controller
@@ -34,7 +35,6 @@ class EmpleadoController extends Controller
             return DB::transaction(function () use ($request) {
                 
                 $request->validate([
-                    // 'numero_empleado' => ... ELIMINADO (Lo generamos nosotros)
                     'codigo_empresa'  => 'nullable|string|max:50|unique:empleado',
                     'nombre' => 'required|string|max:100',
                     'apellido_paterno' => 'required|string|max:100',
@@ -48,9 +48,7 @@ class EmpleadoController extends Controller
 
                 $data = $request->except('foto', 'contactos');
 
-                // --- LÓGICA DE AUTOGENERACIÓN (RMA-XXX) ---
-                // Buscamos el último que empiece con RMA-, ordenado por longitud y luego valor 
-                // para evitar problemas entre RMA-9 y RMA-10. Usamos lockForUpdate para evitar duplicados.
+                // Autogeneración RMA-XXX
                 $ultimo = Empleado::where('numero_empleado', 'LIKE', 'RMA-%')
                                   ->orderByRaw('LENGTH(numero_empleado) DESC')
                                   ->orderBy('numero_empleado', 'DESC')
@@ -59,16 +57,13 @@ class EmpleadoController extends Controller
 
                 $consecutivo = 1;
                 if ($ultimo) {
-                    // Extraemos los dígitos después del guion
                     $partes = explode('-', $ultimo->numero_empleado);
                     if (isset($partes[1]) && is_numeric($partes[1])) {
                         $consecutivo = intval($partes[1]) + 1;
                     }
                 }
                 
-                // Formateamos a 3 dígitos (001, 002...)
                 $data['numero_empleado'] = 'RMA-' . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
-                // ------------------------------------------
 
                 if ($request->hasFile('foto')) {
                     $path = $request->file('foto')->store('empleados', 'public');
@@ -105,12 +100,12 @@ class EmpleadoController extends Controller
 
     public function show(Empleado $empleado)
     {
-        // Cargamos relaciones extra para el modal de Ver Detalles
         $empleado->load([
             'departamento', 
             'ubicacion', 
             'puesto', 
-            'contactos', // [Nuevo] Cargamos los contactos extra
+            'contactos', 
+            'documentos', // <--- [NUEVO] Cargamos el expediente
             'asignacionesActivas.activo.tipo', 
             'asignacionesActivas.activo.marca'
         ]);
@@ -120,51 +115,65 @@ class EmpleadoController extends Controller
     public function update(Request $request, Empleado $empleado)
     {
         try {
-            $request->validate([
-                'nombre' => 'required|string|max:100',
-                'apellido_paterno' => 'required|string|max:100',
-                'estatus' => 'required',
-                'foto' => 'nullable|image|max:2048',
-                // Validaciones condicionales para Baja
-                'fecha_baja' => 'required_if:estatus,Baja|nullable|date',
-                'motivo_baja' => 'required_if:estatus,Baja|nullable|string',
-                // Validamos que el código de empresa sea único (excluyendo al empleado actual)
-                'codigo_empresa' => 'nullable|string|max:50|unique:empleado,codigo_empresa,' . $empleado->id,
-            ]);
+            return DB::transaction(function () use ($request, $empleado) {
+                
+                $request->validate([
+                    'nombre' => 'required|string|max:100',
+                    'apellido_paterno' => 'required|string|max:100',
+                    'estatus' => 'required',
+                    'foto' => 'nullable|image|max:2048',
+                    'fecha_baja' => 'required_if:estatus,Baja|nullable|date',
+                    'motivo_baja' => 'required_if:estatus,Baja|nullable|string',
+                    'codigo_empresa' => 'nullable|string|max:50|unique:empleado,codigo_empresa,' . $empleado->id,
+                    'contactos' => 'nullable|array',
+                ]);
 
-            // Excluimos datos sensibles o manuales
-            $data = $request->except(['numero_empleado', 'foto']);
+                $data = $request->except(['numero_empleado', 'foto', 'contactos']);
 
-            // Lógica de Foto (Reemplazo)
-            if ($request->hasFile('foto')) {
-                // Borrar anterior si existe
-                if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
-                    Storage::disk('public')->delete($empleado->foto_url);
+                if ($request->hasFile('foto')) {
+                    if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
+                        Storage::disk('public')->delete($empleado->foto_url);
+                    }
+                    $path = $request->file('foto')->store('empleados', 'public');
+                    $data['foto_url'] = $path;
                 }
-                $path = $request->file('foto')->store('empleados', 'public');
-                $data['foto_url'] = $path;
-            }
 
-            // Lógica de Baja
-            if ($request->estatus === 'Baja') {
-                $data['fecha_baja'] = $request->fecha_baja;
-                $data['motivo_baja'] = $request->motivo_baja;
-            } else {
-                // Si lo reactivan, limpiamos la baja
-                $data['fecha_baja'] = null;
-                $data['motivo_baja'] = null;
-            }
+                if ($request->estatus === 'Baja') {
+                    $data['fecha_baja'] = $request->fecha_baja;
+                    $data['motivo_baja'] = $request->motivo_baja;
+                } else {
+                    $data['fecha_baja'] = null;
+                    $data['motivo_baja'] = null;
+                }
 
-            $empleado->update($data);
+                $empleado->update($data);
 
-            // NOTA: La actualización de contactos se hará en un endpoint separado o 
-            // en una futura actualización del modal "Editar". Por ahora solo actualizamos datos base.
+                // Actualización de contactos (Borrar y Recrear)
+                if ($request->has('contactos')) {
+                    $empleado->contactos()->delete();
+                    
+                    foreach ($request->contactos as $contacto) {
+                        if (!empty($contacto['valor'])) {
+                            EmpleadoContacto::create([
+                                'empleado_id' => $empleado->id,
+                                'tipo' => $contacto['tipo'],
+                                'valor' => $contacto['valor'],
+                                'descripcion' => $contacto['descripcion'] ?? null,
+                            ]);
+                        }
+                    }
+                } else {
+                     if ($request->has('contactos') && empty($request->contactos)) {
+                        $empleado->contactos()->delete();
+                     }
+                }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Empleado actualizado exitosamente.',
-                'empleado' => $empleado->load(['departamento', 'ubicacion', 'puesto'])
-            ]);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Empleado actualizado exitosamente.',
+                    'empleado' => $empleado->load(['departamento', 'ubicacion', 'puesto'])
+                ]);
+            });
 
         } catch (\Exception $e) {
             Log::error($e->getMessage());
@@ -172,14 +181,13 @@ class EmpleadoController extends Controller
         }
     }
 
-    // Generar PDF de historial
     public function generarHistorialPdf($id)
     {
         $empleado = Empleado::with([
             'departamento', 
             'ubicacion', 
             'puesto',
-            'contactos', // [Nuevo] Incluimos contactos en el reporte
+            'contactos', 
             'asignaciones' => function($query) {
                 $query->orderBy('fecha_asignacion', 'desc');
             },
@@ -196,7 +204,6 @@ class EmpleadoController extends Controller
 
     public function destroy(Empleado $empleado)
     {
-        // Validar que no tenga activos antes de borrar
         if($empleado->asignacionesActivas()->count() > 0){
              return response()->json(['success' => false, 'message' => 'No se puede eliminar: Tiene activos asignados.'], 422);
         }
@@ -207,6 +214,64 @@ class EmpleadoController extends Controller
             }
             $empleado->delete();
             return response()->json(['success' => true, 'message' => 'Empleado eliminado exitosamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);
+        }
+    }
+
+    // --- NUEVOS MÉTODOS PARA EXPEDIENTE DIGITAL ---
+
+    public function subirDocumento(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'tipo_documento' => 'required|string',
+                'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:1024', // Max 1MB
+            ]);
+
+            $empleado = Empleado::findOrFail($id);
+
+            if ($request->hasFile('archivo')) {
+                $file = $request->file('archivo');
+                // Nombre: TIPO_RMA-XXX_TIMESTAMP.ext
+                // Reemplazamos espacios por guiones bajos
+                $safeName = str_replace(' ', '_', $request->tipo_documento);
+                $filename = strtoupper($safeName) . '_' . $empleado->numero_empleado . '_' . time() . '.' . $file->getClientOriginalExtension();
+                
+                // Guardar en storage/app/public/expedientes/{id}/
+                $path = $file->storeAs('expedientes/' . $empleado->id, $filename, 'public');
+
+                $empleado->documentos()->create([
+                    'nombre' => $filename,
+                    'ruta_archivo' => $path,
+                    'tipo_documento' => $request->tipo_documento,
+                    'subido_por' => auth()->id()
+                ]);
+
+                return response()->json(['success' => true, 'message' => 'Documento subido correctamente.']);
+            }
+            
+            return response()->json(['success' => false, 'message' => 'No se envió ningún archivo.'], 400);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Error al subir: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function eliminarDocumento($id)
+    {
+        try {
+            $doc = EmpleadoDocumento::findOrFail($id);
+            
+            // Eliminar archivo físico
+            if (Storage::disk('public')->exists($doc->ruta_archivo)) {
+                Storage::disk('public')->delete($doc->ruta_archivo);
+            }
+            
+            // Eliminar registro BD
+            $doc->delete();
+            
+            return response()->json(['success' => true, 'message' => 'Documento eliminado correctamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);
         }

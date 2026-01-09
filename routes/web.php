@@ -8,7 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AlmacenController;
 use App\Http\Controllers\SeguimientoController;
 use App\Http\Controllers\ReporteController;
-use App\Http\Controllers\ProfileController; // Controlador de perfil de Breeze
+use App\Http\Controllers\ProfileController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -33,35 +33,31 @@ Route::middleware(['auth'])->group(function () {
 
     // --- GRUPO 2: GESTIÓN INTERMEDIA (Admin y Super Admin) ---
     // Empleado NO entra aquí
-    Route::middleware(['role:Admin,Super Admin'])->group(function () {
+    Route::middleware(['role:Admin|Super Admin'])->group(function () {
+
+        // --- ASIGNACIONES ---
+        Route::get('asignaciones/exportar-pdf/{id}', [AsignacionController::class, 'generarPdf'])->name('asignaciones.pdf'); // Carta Responsiva
+        Route::get('asignaciones/exportar-devolucion-pdf/{id}', [AsignacionController::class, 'generarPdfDevolucion'])->name('asignaciones.pdf_devolucion'); // Carta Devolución
+        Route::post('asignaciones/{id}/subir-archivo', [AsignacionController::class, 'subirArchivoFirmado'])->name('asignaciones.subir_archivo');
+        Route::resource('asignaciones', AsignacionController::class);
+
+        // --- ALMACÉN ---
+        Route::resource('almacen', AlmacenController::class)->only(['index', 'store']);
+        Route::post('almacen/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
+
+        // --- EMPLEADOS ---
+        // Rutas para Expediente Digital (Documentos SIGMA)
+        Route::post('/empleados/{id}/documentos', [EmpleadoController::class, 'subirDocumento'])->name('empleados.documentos.store');
+        Route::delete('/empleados/documentos/{id}', [EmpleadoController::class, 'eliminarDocumento'])->name('empleados.documentos.destroy');
         
-        // Reportes
-        Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
-        Route::get('/reportes/inventario', [ReporteController::class, 'generarInventario'])->name('reportes.inventario');
-        Route::get('/reportes/bajas', [ReporteController::class, 'generarBajas'])->name('reportes.bajas');
-        Route::get('/reportes/inventario-csv', [ReporteController::class, 'generarInventarioCSV'])->name('reportes.inventario_csv');
-
-        // Asignaciones
-        Route::get('asignaciones', [AsignacionController::class, 'index'])->name('asignaciones.index');
-        Route::post('asignaciones', [AsignacionController::class, 'store'])->name('asignaciones.store');
-        Route::post('asignaciones/{id}/devolver', [AsignacionController::class, 'devolver'])->name('asignaciones.devolver');
-        Route::get('asignaciones/{id}/carta-responsiva', [AsignacionController::class, 'imprimirCarta'])->name('asignaciones.carta');
-        Route::get('asignaciones/{id}/carta-devolucion', [AsignacionController::class, 'imprimirCartaDevolucion'])->name('asignaciones.carta_devolucion');
-        Route::get('/asignaciones/carta-lote/{loteId}', [AsignacionController::class, 'imprimirCartaPorLote'])->name('asignaciones.carta_lote');
-        Route::post('/asignaciones/subir-documento', [AsignacionController::class, 'subirDocumento'])->name('asignaciones.subir_documento');
-        Route::get('/asignaciones/{id}/historial-documentos', [AsignacionController::class, 'obtenerHistorial']);
-
-        // Almacén
-        Route::get('almacen', [AlmacenController::class, 'index'])->name('almacen.index');
-        Route::post('almacen/{id}/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
-
-        // Empleados y Activos (Solo métodos de lectura/creación, no eliminar si eres Admin)
-        // Nota: Si Admin NO debe editar, habría que restringir 'edit' y 'update' también.
-        // Por simplicidad, aquí dejamos el resource, pero protegemos la ruta 'destroy' abajo.
+        // Historial PDF
+        Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
+        
+        // Resource principal (Excluyendo destroy que es solo para Super Admin)
         Route::resource('empleados', EmpleadoController::class)->except(['destroy']);
         
         
-        Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
+        // --- ACTIVOS ---
         Route::get('/activos/bajas', [ActivoController::class, 'bajas'])->name('activos.bajas');
         Route::post('activos/quick-add-catalogo', [ActivoController::class, 'storeCatalogo'])->name('activos.quick_add');
         Route::resource('activos', ActivoController::class)->except(['destroy', 'darBaja']);
@@ -76,9 +72,20 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('activos/{activo}', [ActivoController::class, 'destroy'])->name('activos.destroy');
         
         // Dar de baja un activo (Considerado crítico)
-        Route::post('/activos/{id}/baja', [ActivoController::class, 'darBaja'])->name('activos.dar_baja');
+        Route::post('/activos/{id}/baja', [ActivoController::class, 'darBaja'])->name('activos.baja');
+        
+        // Catálogos y usuarios del sistema (Opcional, si existieran controladores)
+        // Route::resource('usuarios', UserController::class);
+    });
+
+    // --- REPORTES (Admin y Super Admin) ---
+    Route::middleware(['role:Admin|Super Admin'])->group(function () {
+        Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
+        Route::get('/reportes/inventario-pdf', [ReporteController::class, 'inventarioPdf'])->name('reportes.inventario_pdf');
+        Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])->name('reportes.bajas_pdf');
+        Route::get('/reportes/exportar-excel', [ReporteController::class, 'exportarExcel'])->name('reportes.exportar_excel');
     });
 
 });
 
-require __DIR__.'/auth.php'; // Rutas generadas por Breeze
+require __DIR__.'/auth.php';
