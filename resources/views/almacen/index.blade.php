@@ -172,7 +172,9 @@
 @push('scripts')
 <script>
     var modalEstado = new bootstrap.Modal(document.getElementById('modalEstado'));
+    var modalVer = new bootstrap.Modal(document.getElementById('modalVerActivo'));
 
+    // --- 1. GESTIONAR ESTADO (Mover a Manto, Diagnostico, Pendiente Baja) ---
     window.abrirModalEstado = function(id, estadoActualId) {
         document.getElementById('activo_id_estado').value = id;
         document.getElementById('nuevo_estado_id').value = estadoActualId;
@@ -187,6 +189,7 @@
         var obs = document.getElementById('obs_estado').value;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
+        // NOTA: Usamos la ruta corregida /almacen/{id}/cambiar-estado
         fetch(`/almacen/${id}/cambiar-estado`, {
             method: 'POST',
             headers: {
@@ -203,29 +206,79 @@
                 alert(data.message || 'Error al actualizar');
             }
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+            console.error(err);
+            alert('Error de conexión.');
+        });
     });
 
-    function verActivo(id) {
-        var modalEl = document.getElementById('modalVerActivo');
-        var modal = new bootstrap.Modal(modalEl);
+    // --- 2. CONFIRMAR BAJA DEFINITIVA ---
+    window.confirmarBajaDefinitiva = function(id, codigo) {
+        if(!confirm(`¿CONFIRMAR BAJA DEFINITIVA?\n\nActivo: ${codigo}\n\nEsta acción NO se puede deshacer. El activo quedará archivado permanentemente.`)) {
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        fetch(`/almacen/${id}/confirmar-baja`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify({})
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                alert('Activo dado de baja correctamente.');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error al procesar la baja.');
+        });
+    }
+
+    // --- 3. VER DETALLES (Solución pantalla negra) ---
+    window.verActivo = function(id) {
         var contentEl = document.getElementById('modalVerActivoContent');
 
-        // 1. Mostrar spinner mientras carga
+        // Spinner de carga
         contentEl.innerHTML = `
             <div class="modal-body text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 text-muted small">Cargando ficha técnica...</p>
+                <p class="mt-2 text-muted small">Consultando ficha técnica...</p>
             </div>`;
-        modal.show();
+        
+        modalVer.show();
 
-        // 2. Pedir la vista al controlador
+        // Solicitamos la vista parcial por AJAX
         fetch(`/activos/${id}`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: { 
+                'X-Requested-With': 'XMLHttpRequest', // Indica a Laravel que es AJAX
+                'Accept': 'text/html'
+            }
         })
-        .then(response => response.text())
+        .then(response => {
+            if (!response.ok) throw new Error('Error de servidor');
+            return response.text();
+        })
         .then(html => {
-            contentEl.innerHTML = html; // Poner el diseño bonito
+            // Insertamos el HTML devuelto (debe ser una vista parcial, sin <html> ni <body>)
+            contentEl.innerHTML = html;
+        })
+        .catch(err => {
+            console.error(err);
+            contentEl.innerHTML = `
+                <div class="modal-header border-0"><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body text-center text-danger py-4">
+                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                    <p class="mt-2">No se pudo cargar la información. Intente recargar la página.</p>
+                </div>`;
         });
     }
 </script>

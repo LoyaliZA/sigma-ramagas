@@ -32,19 +32,13 @@
 
                 <td class="text-center py-3">
                     @php
-                        $badgeClass = match($activo->estado_id) {
-                            1 => 'bg-emerald-100 text-emerald-700', // Disponible (Verde suave)
-                            3 => 'bg-amber-100 text-amber-700',      // Mantenimiento (Ambar)
-                            4 => 'bg-blue-100 text-blue-700',        // Diagnóstico (Azul)
-                            5,6 => 'bg-red-100 text-red-700',        // Bajas (Rojo)
-                            default => 'bg-gray-100 text-gray-700'
-                        };
-                        // Estilos en línea para simular clases Tailwind si no las tienes compiladas
+                        // Estilos fijos para evitar dependencias de compilación CSS externa
                         $estiloBadge = match($activo->estado_id) {
-                            1 => 'background-color: #d1fae5; color: #065f46;',
-                            3 => 'background-color: #fef3c7; color: #92400e;',
-                            4 => 'background-color: #dbeafe; color: #1e40af;',
-                            5,6 => 'background-color: #fee2e2; color: #991b1b;',
+                            1 => 'background-color: #d1fae5; color: #065f46;', // Disponible
+                            3 => 'background-color: #fef3c7; color: #92400e;', // Mantenimiento
+                            4 => 'background-color: #dbeafe; color: #1e40af;', // Diagnóstico
+                            5 => 'background-color: #fee2e2; color: #991b1b;', // Pendiente Baja
+                            6 => 'background-color: #374151; color: #f3f4f6;', // Baja Definitiva
                             default => 'background-color: #f3f4f6; color: #374151;'
                         };
                     @endphp
@@ -61,17 +55,44 @@
                 </td>
 
                 <td class="pe-4 py-3 text-end">
-                    <div class="dropdown">
-                         <button class="btn btn-sm btn-white border shadow-sm text-dark d-inline-flex align-items-center gap-2" 
-                                 onclick="abrirModalEstado('{{ $activo->id }}', '{{ $activo->estado_id }}')"
-                                 title="Cambiar Estado">
-                            <i class="bi bi-arrow-left-right text-primary"></i>
-                            <span class="d-none d-md-inline small fw-medium">Gestionar</span>
-                        </button>
+                    <div class="d-inline-flex gap-1">
                         
-                        <a href="{{ route('activos.show', $activo->id) }}" class="btn btn-sm btn-light text-muted ms-1" title="Ver Ficha Completa">
+                        {{-- LÓGICA DE BOTONES SEGÚN ESTADO --}}
+                        
+                        @if($activo->estado_id == 6)
+                            {{-- CASO: BAJA DEFINITIVA (BLOQUEADO) --}}
+                            <span class="badge bg-light text-muted border py-2"><i class="bi bi-lock-fill me-1"></i>Archivado</span>
+
+                        @elseif($activo->estado_id == 5)
+                            {{-- CASO: PENDIENTE DE BAJA --}}
+                            <button class="btn btn-sm btn-danger shadow-sm d-inline-flex align-items-center" 
+                                    onclick="confirmarBajaDefinitiva('{{ $activo->id }}', '{{ $activo->codigo_interno }}')"
+                                    title="Confirmar Baja Definitiva">
+                                <i class="bi bi-trash3-fill me-1"></i>Confirmar
+                            </button>
+                            {{-- Botón editar por si fue un error y quieren regresarlo --}}
+                            <button class="btn btn-sm btn-white border shadow-sm text-dark" 
+                                    onclick="abrirModalEstado('{{ $activo->id }}', '{{ $activo->estado_id }}')"
+                                    title="Corregir Estado">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+
+                        @else
+                            {{-- CASO: NORMAL (Disponible, Manto, Diag) --}}
+                            <button class="btn btn-sm btn-white border shadow-sm text-dark d-inline-flex align-items-center gap-2" 
+                                    onclick="abrirModalEstado('{{ $activo->id }}', '{{ $activo->estado_id }}')"
+                                    title="Cambiar Estado">
+                                <i class="bi bi-arrow-left-right text-primary"></i>
+                                <span class="d-none d-md-inline small fw-medium">Gestionar</span>
+                            </button>
+                        @endif
+                        
+                        {{-- CORRECCIÓN: BOTÓN VER CON ONCLICK (AJAX) --}}
+                        <button class="btn btn-sm btn-light text-muted ms-1 rounded-circle border" 
+                                onclick="verActivo('{{ $activo->id }}')" 
+                                title="Ver Ficha Completa">
                             <i class="bi bi-eye"></i>
-                        </a>
+                        </button>
                     </div>
                 </td>
             </tr>

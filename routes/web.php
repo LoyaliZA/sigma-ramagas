@@ -54,8 +54,13 @@ Route::middleware(['auth'])->group(function () {
 
 
         // --- ALMACÉN ---
-        Route::resource('almacen', AlmacenController::class)->only(['index', 'store']);
-        Route::post('almacen/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
+        // Rutas personalizadas para acciones específicas (Baja y Cambio de Estado)
+        Route::post('almacen/{id}/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
+        Route::post('almacen/{id}/confirmar-baja', [AlmacenController::class, 'confirmarBajaDefinitiva'])->name('almacen.confirmar_baja');
+        
+        // Resource debe ir al final para evitar conflictos de prelación, limitamos a index
+        Route::resource('almacen', AlmacenController::class)->only(['index']);
+        
 
         // --- EMPLEADOS ---
         // Rutas para Expediente Digital (Documentos SIGMA)
