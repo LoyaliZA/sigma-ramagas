@@ -11,6 +11,7 @@
     </div>
 
     <div class="row g-4">
+        {{-- COLUMNA IZQUIERDA: DETALLES DEL ACTIVO --}}
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm sticky-top" style="top: 20px;">
                 <div class="card-body text-center pt-5 pb-4">
@@ -59,6 +60,7 @@
             </div>
         </div>
 
+        {{-- COLUMNA DERECHA: LÍNEA DE TIEMPO --}}
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white py-3 border-bottom-0">
@@ -70,6 +72,7 @@
                             @foreach($historial as $index => $h)
                                 <div class="timeline-item pb-4 ps-4 border-start {{ $loop->last ? 'border-transparent' : 'border-2' }} position-relative" style="border-color: #e9ecef;">
                                     
+                                    {{-- PUNTO DE LA LÍNEA DE TIEMPO --}}
                                     <div class="position-absolute top-0 start-0 translate-middle rounded-circle bg-white border border-2 {{ $h->fecha_devolucion ? 'border-secondary' : 'border-success' }} d-flex align-items-center justify-content-center" style="width: 16px; height: 16px;"></div>
 
                                     <div class="card border bg-light shadow-sm ms-2">
@@ -87,9 +90,27 @@
                                                     <div class="small fw-bold mt-1 text-dark">
                                                         {{ $h->fecha_asignacion ? $h->fecha_asignacion->format('d M Y') : 'N/A' }}
                                                     </div>
-                                                    <div class="small text-muted">
+                                                    <div class="small text-muted mb-1">
                                                         {{ $h->fecha_asignacion ? $h->fecha_asignacion->format('h:i A') : '--:--' }}
                                                     </div>
+
+                                                    {{-- CÁLCULO DE DÍAS EN POSESIÓN --}}
+                                                    @php
+                                                        $inicio = $h->fecha_asignacion;
+                                                        // Si existe fecha devolución usamos esa, si no, usamos la fecha actual
+                                                        $fin = $h->fecha_devolucion ?? now();
+                                                        
+                                                        // Diferencia en días
+                                                        $dias = $inicio->diffInDays($fin);
+                                                        
+                                                        // Formato de texto
+                                                        $textoDias = $dias < 1 ? 'Menos de 1 día' : $dias . ($dias == 1 ? ' día' : ' días');
+                                                    @endphp
+
+                                                    <div class="badge bg-light text-secondary border fw-normal" title="Tiempo en posesión">
+                                                        <i class="bi bi-hourglass-split me-1"></i>{{ $textoDias }}
+                                                    </div>
+                                                    {{-- FIN CÁLCULO --}}
                                                 </div>
                                             </div>
 

@@ -9,58 +9,80 @@
             <h1 class="h3 mb-1 text-gray-800 fw-bold">Seguimiento y Trazabilidad</h1>
             <p class="text-muted small mb-0">Rastreo de ubicación y asignaciones históricas</p>
         </div>
+        
+        {{-- Botón para limpiar filtros si hay alguno activo --}}
+        @if($filtro || $busqueda)
+            <a href="{{ route('seguimiento.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-x-lg me-1"></i>Limpiar Filtros
+            </a>
+        @endif
     </div>
 
+    {{-- TARJETAS DE FILTRO (KPIs Clicables) --}}
     <div class="row g-4 mb-4">
         <div class="col-xl-3 col-md-6">
-            <div class="card card-dashboard h-100 border-0 shadow-sm">
-                <div class="card-body d-flex align-items-center justify-content-between p-4">
-                    <div>
-                        <div class="kpi-label text-muted small fw-bold text-uppercase">Total Rastreados</div>
-                        <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['total_rastreados'] }}</div>
+            <a href="{{ route('seguimiento.index', ['filtro' => 'total', 'q' => $busqueda]) }}" class="text-decoration-none">
+                <div class="card card-dashboard h-100 shadow-sm {{ !$filtro || $filtro == 'total' ? 'border-primary ring-2 bg-soft-primary' : 'border-0' }}" style="{{ !$filtro || $filtro == 'total' ? 'border: 2px solid #4e73df !important;' : '' }}">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="kpi-label text-muted small fw-bold text-uppercase">Total Rastreados</div>
+                            <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['total_rastreados'] }}</div>
+                        </div>
+                        <div class="icon-box bg-soft-primary text-primary rounded-3 p-3"><i class="bi bi-crosshair fs-4"></i></div>
                     </div>
-                    <div class="icon-box bg-soft-primary text-primary rounded-3 p-3"><i class="bi bi-crosshair fs-4"></i></div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card card-dashboard h-100 border-0 shadow-sm">
-                <div class="card-body d-flex align-items-center justify-content-between p-4">
-                    <div>
-                        <div class="kpi-label text-muted small fw-bold text-uppercase">En Uso</div>
-                        <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['en_uso'] }}</div>
+            <a href="{{ route('seguimiento.index', ['filtro' => 'en_uso', 'q' => $busqueda]) }}" class="text-decoration-none">
+                <div class="card card-dashboard h-100 shadow-sm {{ $filtro == 'en_uso' ? 'border-success' : 'border-0' }}" style="{{ $filtro == 'en_uso' ? 'border: 2px solid #1cc88a !important; background-color: #f0fdf4;' : '' }}">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="kpi-label text-muted small fw-bold text-uppercase">En Uso</div>
+                            <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['en_uso'] }}</div>
+                        </div>
+                        <div class="icon-box bg-soft-success text-success rounded-3 p-3"><i class="bi bi-person-check fs-4"></i></div>
                     </div>
-                    <div class="icon-box bg-soft-success text-success rounded-3 p-3"><i class="bi bi-person-check fs-4"></i></div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card card-dashboard h-100 border-0 shadow-sm">
-                <div class="card-body d-flex align-items-center justify-content-between p-4">
-                    <div>
-                        <div class="kpi-label text-muted small fw-bold text-uppercase">Disponibles</div>
-                        <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['disponibles'] }}</div>
+            <a href="{{ route('seguimiento.index', ['filtro' => 'disponibles', 'q' => $busqueda]) }}" class="text-decoration-none">
+                <div class="card card-dashboard h-100 shadow-sm {{ $filtro == 'disponibles' ? 'border-info' : 'border-0' }}" style="{{ $filtro == 'disponibles' ? 'border: 2px solid #36b9cc !important; background-color: #f0f9ff;' : '' }}">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="kpi-label text-muted small fw-bold text-uppercase">Disponibles</div>
+                            <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['disponibles'] }}</div>
+                        </div>
+                        <div class="icon-box bg-soft-info text-info rounded-3 p-3"><i class="bi bi-box-seam fs-4"></i></div>
                     </div>
-                    <div class="icon-box bg-soft-info text-info rounded-3 p-3"><i class="bi bi-box-seam fs-4"></i></div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card card-dashboard h-100 border-0 shadow-sm">
-                <div class="card-body d-flex align-items-center justify-content-between p-4">
-                    <div>
-                        <div class="kpi-label text-muted small fw-bold text-uppercase">Mantenimiento</div>
-                        <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['mantenimiento'] }}</div>
+            <a href="{{ route('seguimiento.index', ['filtro' => 'mantenimiento', 'q' => $busqueda]) }}" class="text-decoration-none">
+                <div class="card card-dashboard h-100 shadow-sm {{ $filtro == 'mantenimiento' ? 'border-warning' : 'border-0' }}" style="{{ $filtro == 'mantenimiento' ? 'border: 2px solid #f6c23e !important; background-color: #fefce8;' : '' }}">
+                    <div class="card-body d-flex align-items-center justify-content-between p-4">
+                        <div>
+                            <div class="kpi-label text-muted small fw-bold text-uppercase">Mantenimiento</div>
+                            <div class="kpi-value h3 fw-bold text-gray-800 mb-0">{{ $kpis['mantenimiento'] }}</div>
+                        </div>
+                        <div class="icon-box bg-soft-warning text-warning rounded-3 p-3"><i class="bi bi-tools fs-4"></i></div>
                     </div>
-                    <div class="icon-box bg-soft-warning text-warning rounded-3 p-3"><i class="bi bi-tools fs-4"></i></div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
+    {{-- BARRA DE BÚSQUEDA --}}
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-4">
             <form action="{{ route('seguimiento.index') }}" method="GET">
+                {{-- Mantenemos el filtro activo al buscar --}}
+                @if($filtro)
+                    <input type="hidden" name="filtro" value="{{ $filtro }}">
+                @endif
+                
                 <div class="input-group input-group-lg">
                     <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" name="q" class="form-control border-start-0 shadow-none ps-0" 
@@ -72,8 +94,14 @@
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-bottom-0 pt-4 px-4">
-            <h6 class="fw-bold text-primary mb-0"><i class="bi bi-list-ul me-2"></i>Resultados Recientes</h6>
+        <div class="card-header bg-white border-bottom-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold text-primary mb-0">
+                <i class="bi bi-list-ul me-2"></i>Resultados 
+                @if($filtro) 
+                    <span class="text-muted fw-normal small">({{ ucfirst(str_replace('_', ' ', $filtro)) }})</span>
+                @endif
+            </h6>
+            <small class="text-muted">Mostrando {{ $activos->count() }} resultados</small>
         </div>
         <div class="card-body p-0">
             <div class="list-group list-group-flush">
@@ -102,6 +130,7 @@
                                     1 => 'bg-success-subtle text-success',
                                     2 => 'bg-primary-subtle text-primary',
                                     3 => 'bg-warning-subtle text-warning',
+                                    4 => 'bg-warning-subtle text-warning',
                                     default => 'bg-light text-muted'
                                 };
                             @endphp
@@ -115,6 +144,9 @@
                     <div class="text-center py-5">
                         <i class="bi bi-search fs-1 text-muted opacity-50"></i>
                         <p class="text-muted mt-3">No se encontraron activos con ese criterio.</p>
+                        @if($filtro || $busqueda)
+                            <a href="{{ route('seguimiento.index') }}" class="btn btn-sm btn-link">Borrar filtros</a>
+                        @endif
                     </div>
                 @endforelse
             </div>
