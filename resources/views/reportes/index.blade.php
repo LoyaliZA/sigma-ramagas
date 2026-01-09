@@ -190,7 +190,7 @@
                                 <i class="bi bi-trash3"></i>
                             </div>
                         </div>
-                        <a href="{{ route('reportes.bajas') }}" target="_blank"
+                        <a href="{{ route('reportes.bajas_pdf') }}" target="_blank"
                             class="btn btn-outline-danger btn-sm rounded-pill w-100">
                             <i class="bi bi-file-earmark-pdf me-2"></i>Reporte de Bajas
                         </a>
