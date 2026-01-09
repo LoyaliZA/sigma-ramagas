@@ -12,71 +12,118 @@ class CatalogosSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Roles
-        // Se busca por 'id'. Si existe, actualiza nombre/descripcion. Si no, inserta.
-        DB::table('roles')->upsert([
-            ['id' => 1, 'nombre' => 'Super Admin', 'descripcion' => 'Usuario con acceso total al sistema'],
-            ['id' => 2, 'nombre' => 'Admin',       'descripcion' => 'Administrador'],
-            ['id' => 3, 'nombre' => 'Empleado',    'descripcion' => 'Solo lectura'],
-        ], ['id'], ['nombre', 'descripcion']);
+        // 1. Limpiar tablas (reiniciar IDs)
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('catalogo_motivosbaja')->truncate();
+        DB::table('catalogo_departamentos')->truncate();
+        DB::table('catalogo_ubicaciones')->truncate();
+        DB::table('catalogo_condiciones')->truncate();
+        DB::table('catalogo_estadosactivo')->truncate();
+        DB::table('catalogo_estadosasignacion')->truncate();
+        DB::table('catalogo_puestos')->truncate();
+        
+        // Tablas nuevas o críticas para tu lógica
+        DB::table('catalogo_tiposactivo')->truncate(); 
+        DB::table('catalogo_marcas')->truncate();
+        DB::table('catalogo_tipos_ram')->truncate();
+        DB::table('catalogo_tipos_almacenamiento')->truncate();
+        
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
 
-        // --- Llenar Catálogos (Usando upsert por 'nombre') ---
+        // --- 2. TIPOS DE ACTIVO (CRÍTICO: Los nombres activan los campos en el formulario) ---
+        // El JS busca: laptop, pc, desktop, cpu, servidor, monitor, pantalla, celular, tablet
+        DB::table('catalogo_tiposactivo')->insert([
+            ['nombre' => 'Laptop'],           // Activa campos: CPU, RAM, Disco
+            ['nombre' => 'Desktop PC'],       // Activa campos: CPU, RAM, Disco
+            ['nombre' => 'Servidor'],         // Activa campos: CPU, RAM, Disco
+            ['nombre' => 'Monitor'],          // Activa campos: Pulgadas, Conectividad
+            ['nombre' => 'Celular'],          // Activa campos: IMEI, Pantalla
+            ['nombre' => 'Tablet'],           // Activa campos: IMEI, Pantalla
+            ['nombre' => 'Impresora'],        // Genérico
+            ['nombre' => 'Proyector'],        // Genérico
+            ['nombre' => 'Accesorio'],        // Genérico
+            ['nombre' => 'Licencia Software'],// Genérico
+            ['nombre' => 'Vehículo'],         // Genérico
+        ]);
 
-        DB::table('catalogo_motivosbaja')->upsert([
-            ['nombre' => 'Dañado', 'comentarios_baja' => ''],
-            ['nombre' => 'Extraviado', 'comentarios_baja' => ''],
-            ['nombre' => 'Robado', 'comentarios_baja' => ''],
-            ['nombre' => 'Obsoleto', 'comentarios_baja' => ''],
-        ], ['nombre'], ['comentarios_baja']);
+        // --- 3. Marcas ---
+        DB::table('catalogo_marcas')->insert([
+            ['nombre' => 'HP'],
+            ['nombre' => 'Dell'],
+            ['nombre' => 'Lenovo'],
+            ['nombre' => 'Apple'],
+            ['nombre' => 'Samsung'],
+            ['nombre' => 'Logitech'],
+            ['nombre' => 'Epson'],
+            ['nombre' => 'Cisco'],
+            ['nombre' => 'Sin Marca'],
+        ]);
 
-        DB::table('catalogo_departamentos')->upsert([
-            ['nombre' => 'Sistemas'],
-            ['nombre' => 'Operaciones'],
-            ['nombre' => 'Administración'],
-            ['nombre' => 'Mantenimiento'],
-            ['nombre' => 'Recursos Humanos'],
-        ], ['nombre'], ['nombre']);
-
-        DB::table('catalogo_ubicaciones')->upsert([
+        // --- 4. Ubicaciones ---
+        DB::table('catalogo_ubicaciones')->insert([
             ['nombre' => 'Oficinas Centrales Villahermosa'],
             ['nombre' => 'Planta Cárdenas'],
             ['nombre' => 'Planta Comalcalco'],
             ['nombre' => 'Estación de Servicio Norte'],
             ['nombre' => 'Almacén Central'],
-        ], ['nombre'], ['nombre']);
+            ['nombre' => 'Home Office'],
+        ]);
         
-        DB::table('catalogo_condiciones')->upsert([
+        // --- 5. Condiciones ---
+        DB::table('catalogo_condiciones')->insert([
             ['nombre' => 'Nuevo'],
-            ['nombre' => 'Usado'],
-            ['nombre' => 'Semi-nuevo'],
-        ], ['nombre'], ['nombre']);
+            ['nombre' => 'Excelente'],
+            ['nombre' => 'Bueno'],
+            ['nombre' => 'Regular'],
+            ['nombre' => 'Malo'],
+            ['nombre' => 'Para Piezas'],
+        ]);
 
-        DB::table('catalogo_estadosactivo')->upsert([
-            ['nombre' => 'Disponible'],
-            ['nombre' => 'En Uso'],
-            ['nombre' => 'En Mantenimiento'],
-            ['nombre' => 'En Diagnóstico'],
-            ['nombre' => 'Pendiente de Baja'],
-            ['nombre' => 'Baja'],
-        ], ['nombre'], ['nombre']);
+        // --- 6. Estados del Activo ---
+        DB::table('catalogo_estadosactivo')->insert([
+            ['nombre' => 'Disponible'],       // ID 1
+            ['nombre' => 'En Uso'],           // ID 2
+            ['nombre' => 'En Mantenimiento'], // ID 3
+            ['nombre' => 'En Diagnóstico'],   // ID 4
+            ['nombre' => 'Pendiente de Baja'],// ID 5
+            ['nombre' => 'Baja Definitiva'],  // ID 6
+        ]);
 
-        DB::table('catalogo_estadosasignacion')->upsert([
-            ['nombre' => 'Funcional'],
-            ['nombre' => 'Con detalles estéticos'],
-            ['nombre' => 'Requiere reparación'],
-            ['nombre' => 'Dañado'],
-        ], ['nombre'], ['nombre']);
+        // --- 7. Motivos de Baja ---
+        DB::table('catalogo_motivosbaja')->insert([
+            ['nombre' => 'Dañado Irreparable', 'comentarios_baja' => 'Falla técnica costosa'],
+            ['nombre' => 'Obsolescencia Tecnológica', 'comentarios_baja' => 'Equipo muy viejo'],
+            ['nombre' => 'Robo', 'comentarios_baja' => 'Con acta del MP'],
+            ['nombre' => 'Extravío', 'comentarios_baja' => 'Responsabilidad del usuario'],
+            ['nombre' => 'Venta', 'comentarios_baja' => 'Vendido a terceros'],
+        ]);
 
-        // <--- NUEVO SEEDER --->
-        DB::table('catalogo_puestos')->upsert([
-            ['nombre' => 'Gerente de Sistemas'],
-            ['nombre' => 'Analista de Sistemas'],
-            ['nombre' => 'Coordinador de Operaciones'],
-            ['nombre' => 'Técnico de Mantenimiento'],
-            ['nombre' => 'Contador'],
-            ['nombre' => 'Analista Administrativo'],
-            ['nombre' => 'Ingeniero de TICS'],
-        ], ['nombre'], ['nombre']);
+        // --- 8. Tipos de RAM (Nuevo) ---
+        DB::table('catalogo_tipos_ram')->insert([
+            ['nombre' => 'DDR3'],
+            ['nombre' => 'DDR4'],
+            ['nombre' => 'DDR5'],
+            ['nombre' => 'LPDDR4'],
+            ['nombre' => 'SODIMM DDR4'],
+        ]);
+
+        // --- 9. Tipos de Almacenamiento (Nuevo) ---
+        DB::table('catalogo_tipos_almacenamiento')->insert([
+            ['nombre' => 'HDD (Mecánico)'],
+            ['nombre' => 'SSD SATA'],
+            ['nombre' => 'SSD M.2 NVMe'],
+            ['nombre' => 'eMMC'],
+        ]);
+
+        // --- 10. Departamentos ---
+        DB::table('catalogo_departamentos')->insert([
+            ['nombre' => 'Sistemas'],
+            ['nombre' => 'Recursos Humanos'],
+            ['nombre' => 'Contabilidad'],
+            ['nombre' => 'Operaciones'],
+            ['nombre' => 'Ventas'],
+            ['nombre' => 'Dirección General'],
+        ]);
     }
 }
