@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use Intervention\Image\Laravel\Facades\Image;
 use App\Models\CatalogoDepartamento;
 use App\Models\CatalogoUbicacion;
 use App\Models\CatalogoPuesto;
 use App\Models\Empleado;
 use App\Models\EmpleadoContacto;
-use App\Models\EmpleadoDocumento; // <--- [NUEVO] Importado
+use App\Models\EmpleadoDocumento;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -42,7 +43,7 @@ class EmpleadoController extends Controller
                     'departamento_id' => 'required|integer',
                     'planta_id' => 'required|integer',
                     'estatus' => 'required',
-                    'foto' => 'nullable|image|max:2048',
+                    'foto' => 'nullable|image|max:10240', // 10MB Máx
                     'contactos' => 'nullable|array',
                 ]);
 
@@ -62,13 +63,25 @@ class EmpleadoController extends Controller
                         $consecutivo = intval($partes[1]) + 1;
                     }
                 }
-                
                 $data['numero_empleado'] = 'RMA-' . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
 
+                // --- COMPRESIÓN DE IMAGEN (VERSIÓN 3) ---
                 if ($request->hasFile('foto')) {
-                    $path = $request->file('foto')->store('empleados', 'public');
-                    $data['foto_url'] = $path;
+                    $file = $request->file('foto');
+                    $filename = 'empleados/' . uniqid() . '.jpg';
+                    
+                    // Leer imagen
+                    $image = Image::read($file);
+                    
+                    // Redimensionar a 800px de ancho (mantiene aspecto)
+                    $image->scale(width: 800);
+                    
+                    // Guardar en Storage como JPG calidad 75
+                    Storage::disk('public')->put($filename, $image->toJpeg(75));
+                    
+                    $data['foto_url'] = $filename;
                 }
+                // ----------------------------------------
 
                 $empleado = Empleado::create($data);
 
@@ -105,7 +118,7 @@ class EmpleadoController extends Controller
             'ubicacion', 
             'puesto', 
             'contactos', 
-            'documentos', // <--- [NUEVO] Cargamos el expediente
+            'documentos',
             'asignacionesActivas.activo.tipo', 
             'asignacionesActivas.activo.marca'
         ]);
@@ -115,28 +128,42 @@ class EmpleadoController extends Controller
     public function update(Request $request, Empleado $empleado)
     {
         try {
+            if ($request->estatus === 'Baja' && $empleado->asignacionesActivas()->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'NO SE PUEDE DAR DE BAJA: Tiene activos asignados. Registre devolución primero.'
+                ], 422);
+            }
+
             return DB::transaction(function () use ($request, $empleado) {
                 
                 $request->validate([
                     'nombre' => 'required|string|max:100',
                     'apellido_paterno' => 'required|string|max:100',
                     'estatus' => 'required',
-                    'foto' => 'nullable|image|max:2048',
-                    'fecha_baja' => 'required_if:estatus,Baja|nullable|date',
-                    'motivo_baja' => 'required_if:estatus,Baja|nullable|string',
+                    'foto' => 'nullable|image|max:10240',
                     'codigo_empresa' => 'nullable|string|max:50|unique:empleado,codigo_empresa,' . $empleado->id,
                     'contactos' => 'nullable|array',
                 ]);
 
                 $data = $request->except(['numero_empleado', 'foto', 'contactos']);
 
+                // --- COMPRESIÓN DE IMAGEN (VERSIÓN 3) ---
                 if ($request->hasFile('foto')) {
                     if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
                         Storage::disk('public')->delete($empleado->foto_url);
                     }
-                    $path = $request->file('foto')->store('empleados', 'public');
-                    $data['foto_url'] = $path;
+
+                    $file = $request->file('foto');
+                    $filename = 'empleados/' . uniqid() . '.jpg';
+
+                    $image = Image::read($file);
+                    $image->scale(width: 800);
+                    Storage::disk('public')->put($filename, $image->toJpeg(75));
+                    
+                    $data['foto_url'] = $filename;
                 }
+                // ----------------------------------------
 
                 if ($request->estatus === 'Baja') {
                     $data['fecha_baja'] = $request->fecha_baja;
@@ -148,10 +175,8 @@ class EmpleadoController extends Controller
 
                 $empleado->update($data);
 
-                // Actualización de contactos (Borrar y Recrear)
                 if ($request->has('contactos')) {
                     $empleado->contactos()->delete();
-                    
                     foreach ($request->contactos as $contacto) {
                         if (!empty($contacto['valor'])) {
                             EmpleadoContacto::create([
@@ -162,15 +187,13 @@ class EmpleadoController extends Controller
                             ]);
                         }
                     }
-                } else {
-                     if ($request->has('contactos') && empty($request->contactos)) {
-                        $empleado->contactos()->delete();
-                     }
+                } elseif ($request->has('contactos') && empty($request->contactos)) {
+                    $empleado->contactos()->delete();
                 }
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Empleado actualizado exitosamente.',
+                    'message' => 'Actualizado correctamente.',
                     'empleado' => $empleado->load(['departamento', 'ubicacion', 'puesto'])
                 ]);
             });
@@ -204,6 +227,7 @@ class EmpleadoController extends Controller
 
     public function destroy(Empleado $empleado)
     {
+        // Doble seguridad: tampoco permitir borrar si tiene activos
         if($empleado->asignacionesActivas()->count() > 0){
              return response()->json(['success' => false, 'message' => 'No se puede eliminar: Tiene activos asignados.'], 422);
         }
@@ -219,26 +243,20 @@ class EmpleadoController extends Controller
         }
     }
 
-    // --- NUEVOS MÉTODOS PARA EXPEDIENTE DIGITAL ---
-
     public function subirDocumento(Request $request, $id)
     {
         try {
             $request->validate([
                 'tipo_documento' => 'required|string',
-                'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:1024', // Max 1MB
+                'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:1024',
             ]);
 
             $empleado = Empleado::findOrFail($id);
 
             if ($request->hasFile('archivo')) {
                 $file = $request->file('archivo');
-                // Nombre: TIPO_RMA-XXX_TIMESTAMP.ext
-                // Reemplazamos espacios por guiones bajos
                 $safeName = str_replace(' ', '_', $request->tipo_documento);
                 $filename = strtoupper($safeName) . '_' . $empleado->numero_empleado . '_' . time() . '.' . $file->getClientOriginalExtension();
-                
-                // Guardar en storage/app/public/expedientes/{id}/
                 $path = $file->storeAs('expedientes/' . $empleado->id, $filename, 'public');
 
                 $empleado->documentos()->create([
@@ -250,7 +268,6 @@ class EmpleadoController extends Controller
 
                 return response()->json(['success' => true, 'message' => 'Documento subido correctamente.']);
             }
-            
             return response()->json(['success' => false, 'message' => 'No se envió ningún archivo.'], 400);
 
         } catch (\Exception $e) {
@@ -263,14 +280,10 @@ class EmpleadoController extends Controller
         try {
             $doc = EmpleadoDocumento::findOrFail($id);
             
-            // Eliminar archivo físico
             if (Storage::disk('public')->exists($doc->ruta_archivo)) {
                 Storage::disk('public')->delete($doc->ruta_archivo);
             }
-            
-            // Eliminar registro BD
             $doc->delete();
-            
             return response()->json(['success' => true, 'message' => 'Documento eliminado correctamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);

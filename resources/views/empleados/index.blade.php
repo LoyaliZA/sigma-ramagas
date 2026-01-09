@@ -1,7 +1,19 @@
 @extends('layouts.app')
 
 @section('title', 'Directorio de Empleados - SIGMA')
-
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+<style>
+    /* Ajuste para que Select2 se vea bien dentro de Modales y con Bootstrap 5 */
+    .select2-container--bootstrap-5 .select2-selection {
+        border-color: #dee2e6;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+    }
+    .select2-container {
+        z-index: 9999; /* Asegurar que el dropdown salga sobre el modal */
+    }
+</style>
 @section('content')
 <div class="container-fluid p-4">
 
@@ -94,7 +106,8 @@
                     </thead>
                     <tbody id="empleadosTableBody">
                         @forelse ($empleados as $empleado)
-                        <tr class="empleado-row" data-nombre="{{ strtolower($empleado->nombre_completo) }}"
+                        <tr class="empleado-row" id="fila-empleado-{{ $empleado->id }}"
+                            data-nombre="{{ strtolower($empleado->nombre_completo) }}"
                             data-numero="{{ strtolower($empleado->numero_empleado) }}"
                             data-correo="{{ strtolower($empleado->correo) }}" data-estatus="{{ $empleado->estatus }}"
                             data-depto-id="{{ $empleado->departamento_id }}"
@@ -103,17 +116,19 @@
                             <td class="ps-4">
                                 <div class="d-flex align-items-center">
                                     @if($empleado->foto_url)
+                                    {{-- Agregamos ID a la imagen para actualizarla sin recargar --}}
                                     <img src="{{ asset('storage/' . $empleado->foto_url) }}"
-                                        class="rounded-circle me-3 object-fit-cover shadow-sm border" width="40"
-                                        height="40">
+                                        class="rounded-circle me-3 object-fit-cover shadow-sm border img-avatar"
+                                        width="40" height="40">
                                     @else
-                                    <div class="rounded-circle me-3 bg-soft-primary text-primary d-flex align-items-center justify-content-center fw-bold border"
+                                    <div class="rounded-circle me-3 bg-soft-primary text-primary d-flex align-items-center justify-content-center fw-bold border div-avatar"
                                         style="width:40px; height:40px;">
                                         {{ substr($empleado->nombre, 0, 1) }}{{ substr($empleado->apellido_paterno, 0, 1) }}
                                     </div>
                                     @endif
                                     <div>
-                                        <div class="fw-bold text-dark">{{ $empleado->nombre_completo }}</div>
+                                        <div class="fw-bold text-dark nombre-empleado">{{ $empleado->nombre_completo }}
+                                        </div>
                                         <div class="small text-muted">{{ $empleado->numero_empleado }} |
                                             {{ $empleado->correo }}</div>
                                     </div>
@@ -131,7 +146,8 @@
                                 </span>
                             </td>
 
-                            <td>
+                            <td class="text-center">
+                                {{-- AQUI: Agregamos la clase 'badge-estatus' para identificarlo con JS --}}
                                 @php
                                 $badgeClass = match($empleado->estatus) {
                                 'Activo' => 'bg-success bg-opacity-10 text-success',
@@ -140,7 +156,7 @@
                                 default => 'bg-light text-dark'
                                 };
                                 @endphp
-                                <span class="badge {{ $badgeClass }} px-3 py-2 rounded-pill">
+                                <span class="badge {{ $badgeClass }} px-3 py-2 rounded-pill badge-estatus">
                                     {{ $empleado->estatus }}
                                 </span>
                             </td>
@@ -188,454 +204,372 @@
 @endsection
 
 @push('scripts')
+@push('scripts')
 <script>
     // ==========================================
-    // 1. INICIALIZACIÓN Y VARIABLES GLOBALES
+    // 1. INICIALIZACIÓN
     // ==========================================
+    const modalNuevo = new bootstrap.Modal(document.getElementById('modalNuevoEmpleado'));
+    const modalVer = new bootstrap.Modal(document.getElementById('modalVerEmpleado'));
+    const modalEditar = new bootstrap.Modal(document.getElementById('modalEditarEmpleado'));
+
+    const formNuevo = document.getElementById('formNuevoEmpleado');
+    const formEditar = document.getElementById('formEditarEmpleado');
     
-    // Instancias de Modales
-    var modalNuevoEmpleado = new bootstrap.Modal(document.getElementById('modalNuevoEmpleado'));
-    var modalVerEmpleado = new bootstrap.Modal(document.getElementById('modalVerEmpleado'));
-    var modalEditarEmpleado = new bootstrap.Modal(document.getElementById('modalEditarEmpleado'));
-
-    // Referencias a Formularios
-    var formNuevoEmpleado = document.getElementById('formNuevoEmpleado');
-    var formEditarEmpleado = document.getElementById('formEditarEmpleado');
-
-    // Variable para controlar el empleado seleccionado (Vital para el Expediente)
-    let currentEmpleadoId = null;
+    let currentEmpleadoId = null; // Para expediente digital
 
     // ==========================================
-    // 2. LÓGICA DE BÚSQUEDA Y FILTROS
+    // 2. FILTROS Y BÚSQUEDA
     // ==========================================
+    function limpiarTexto(t) { return t ? t.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : ''; }
 
-    // Algoritmo de Normalización (Quitar acentos y minúsculas)
-    function limpiarTexto(texto) {
-        if (!texto) return '';
-        return texto.toString()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase();
-    }
+    let filtro = { texto: '', depto: '', ubi: '', estatus: 'todos' };
 
-    // Variables de Estado Filtros
-    let filtroTexto = '';
-    let filtroDepto = '';
-    let filtroUbi = '';
-    let filtroEstatus = 'todos';
+    document.getElementById('searchInput').addEventListener('input', (e) => { filtro.texto = limpiarTexto(e.target.value); aplicarFiltros(); });
+    document.getElementById('filtroDepartamento').addEventListener('change', (e) => { filtro.depto = e.target.value; aplicarFiltros(); });
+    document.getElementById('filtroUbicacion').addEventListener('change', (e) => { filtro.ubi = e.target.value; aplicarFiltros(); });
 
-    // Listeners de Filtros
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        filtroTexto = limpiarTexto(e.target.value);
-        aplicarFiltros();
-    });
-    
-    document.getElementById('filtroDepartamento').addEventListener('change', (e) => {
-        filtroDepto = e.target.value;
-        aplicarFiltros();
-    });
-
-    document.getElementById('filtroUbicacion').addEventListener('change', (e) => { // Asumiendo que agregaste este ID
-        filtroUbi = e.target.value;
-        aplicarFiltros();
-    });
-
-    // Cambio de Pestañas (Activos / Inactivos / Bajas)
-    const tabLinks = document.querySelectorAll('#tabsEstatus .nav-link');
-    function cambiarTab(elemento) {
-        tabLinks.forEach(link => link.classList.remove('active', 'border-bottom', 'border-primary', 'border-3'));
-        elemento.classList.add('active', 'border-bottom', 'border-primary', 'border-3');
-        filtroEstatus = elemento.getAttribute('data-estatus');
+    function cambiarTab(el) {
+        document.querySelectorAll('#tabsEstatus .nav-link').forEach(l => l.classList.remove('active', 'border-bottom', 'border-primary', 'border-3'));
+        el.classList.add('active', 'border-bottom', 'border-primary', 'border-3');
+        filtro.estatus = el.getAttribute('data-estatus');
         aplicarFiltros();
     }
 
-    // Función Maestra de Filtrado
     function aplicarFiltros() {
-        const rows = document.querySelectorAll('.empleado-row');
-        const noSearchRow = document.getElementById('noSearchRow');
         let visibles = 0;
+        document.querySelectorAll('.empleado-row').forEach(row => {
+            const data = {
+                nombre: limpiarTexto(row.dataset.nombre),
+                numero: limpiarTexto(row.dataset.numero),
+                correo: limpiarTexto(row.dataset.correo),
+                depto: row.dataset.deptoId,
+                ubi: row.dataset.ubicacionId,
+                estatus: row.dataset.estatus
+            };
 
-        rows.forEach(row => {
-            const nombre = limpiarTexto(row.getAttribute('data-nombre'));
-            const numero = limpiarTexto(row.getAttribute('data-numero'));
-            const correo = limpiarTexto(row.getAttribute('data-correo'));
-            const deptoId = row.getAttribute('data-depto-id');
-            const ubiId = row.getAttribute('data-ubicacion-id'); // Asegúrate que tu TR tenga este data attribute
-            const estatus = row.getAttribute('data-estatus');
+            const matchTexto = data.nombre.includes(filtro.texto) || data.numero.includes(filtro.texto) || data.correo.includes(filtro.texto);
+            const matchDepto = filtro.depto === '' || data.depto === filtro.depto;
+            const matchUbi = filtro.ubi === '' || data.ubi === filtro.ubi;
+            const matchEstatus = filtro.estatus === 'todos' || data.estatus === filtro.estatus;
 
-            const coincideTexto = nombre.includes(filtroTexto) || numero.includes(filtroTexto) || correo.includes(filtroTexto);
-            const coincideDepto = filtroDepto === '' || deptoId === filtroDepto;
-            // Si no tienes filtroUbicacion en el HTML, puedes comentar la siguiente línea
-            // const coincideUbi = filtroUbi === '' || ubiId === filtroUbi; 
-            const coincideEstatus = filtroEstatus === 'todos' || estatus === filtroEstatus;
-
-            if (coincideTexto && coincideDepto && coincideEstatus) { // Agrega && coincideUbi si usas ese filtro
+            if (matchTexto && matchDepto && matchUbi && matchEstatus) {
                 row.style.display = '';
                 visibles++;
             } else {
                 row.style.display = 'none';
             }
         });
-
-        if (noSearchRow) noSearchRow.style.display = (visibles === 0) ? '' : 'none';
         
-        const badge = document.getElementById('contadorRegistros');
-        if (badge) badge.textContent = visibles;
+        document.getElementById('noSearchRow').style.display = (visibles === 0) ? '' : 'none';
+        document.getElementById('contadorRegistros').textContent = visibles;
     }
 
-
     // ==========================================
-    // 3. LÓGICA DE EMPLEADOS (CRUD)
+    // 3. CRUD EMPLEADOS
     // ==========================================
 
-    // --- CREAR EMPLEADO ---
-    formNuevoEmpleado.addEventListener('submit', async function(e) {
+    // --- NUEVO ---
+    formNuevo.addEventListener('submit', async function(e) {
         e.preventDefault();
-        const formData = new FormData(this);
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
 
         try {
-            // Usamos axios que maneja mejor los errores y headers, pero fetch es valido
-            const response = await fetch("{{ route('empleados.store') }}", {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json'
-                },
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                let msg = result.message || 'Error desconocido';
-                if(result.errors) msg = Object.values(result.errors).flat().join('\n');
-                throw new Error(msg);
-            }
-
-            if (result.success) {
-                modalNuevoEmpleado.hide();
-                formNuevoEmpleado.reset();
-                Swal.fire({ icon: 'success', title: '¡Éxito!', text: result.message, timer: 1500, showConfirmButton: false })
+            const res = await axios.post("{{ route('empleados.store') }}", new FormData(this));
+            if (res.data.success) {
+                modalNuevo.hide();
+                formNuevo.reset();
+                Swal.fire({ icon: 'success', title: 'Guardado', text: 'Empleado creado correctamente.', timer: 1500, showConfirmButton: false })
                     .then(() => window.location.reload());
             }
         } catch (error) {
-            Swal.fire({ icon: 'error', title: 'Error', text: error.message });
+            Swal.fire('Error', error.response?.data?.message || 'Error al guardar', 'error');
+        } finally {
+            btn.disabled = false;
         }
     });
 
-    // --- VER DETALLES (CON EXPEDIENTE) ---
+    // --- VER DETALLES ---
     async function verEmpleado(id) {
-        currentEmpleadoId = id; // Guardar ID para subida de docs
-
-        // Reset UI: Seleccionar Tab Perfil por defecto
-        const firstTab = document.querySelector('#empleadoTabs button[data-bs-target="#perfil"]');
-        if(firstTab) bootstrap.Tab.getOrCreateInstance(firstTab).show();
+        currentEmpleadoId = id;
+        
+        // Reset Tabs
+        const tabPerfil = document.querySelector('#empleadoTabs button[data-bs-target="#perfil"]');
+        if(tabPerfil) bootstrap.Tab.getOrCreateInstance(tabPerfil).show();
 
         // Loaders
-        document.getElementById('verListaContactos').innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
+        document.getElementById('verListaContactos').innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
         const listaDocs = document.getElementById('listaDocumentos');
-        if(listaDocs) listaDocs.innerHTML = '<tr><td colspan="3" class="text-center p-3">Cargando expediente...</td></tr>';
+        if(listaDocs) listaDocs.innerHTML = '<tr><td colspan="3" class="text-center">Cargando...</td></tr>';
 
-        axios.get(`/empleados/${id}`)
-            .then(response => {
-                const emp = response.data;
+        try {
+            const { data: emp } = await axios.get(`/empleados/${id}`);
+            
+            // Datos Básicos
+            document.getElementById('verNombreCompleto').textContent = emp.nombre_completo;
+            document.getElementById('verPuesto').textContent = emp.puesto?.nombre || 'N/A';
+            document.getElementById('verNumeroEmpleado').textContent = emp.numero_empleado;
+            document.getElementById('verCodigoEmpresa').textContent = emp.codigo_empresa || '-';
+            document.getElementById('verDepartamento').textContent = emp.departamento?.nombre || 'N/A';
+            document.getElementById('verUbicacion').textContent = emp.ubicacion?.nombre || 'N/A';
+            document.getElementById('verCorreo').textContent = emp.correo || 'N/A';
+            document.getElementById('verFechaIngreso').textContent = emp.fecha_ingreso ? new Date(emp.fecha_ingreso).toLocaleDateString() : 'N/A';
 
-                // 1. Datos Generales
-                document.getElementById('verNombreCompleto').textContent = emp.nombre_completo;
-                document.getElementById('verPuesto').textContent = emp.puesto?.nombre || 'N/A';
-                document.getElementById('verNumeroEmpleado').textContent = emp.numero_empleado;
-                document.getElementById('verCodigoEmpresa').textContent = emp.codigo_empresa || '-';
-                document.getElementById('verDepartamento').textContent = emp.departamento?.nombre || 'N/A';
-                document.getElementById('verUbicacion').textContent = emp.ubicacion?.nombre || 'N/A';
-                document.getElementById('verCorreo').textContent = emp.correo || 'N/A';
-                
-                // Formateo de Fecha
-                let fechaIngreso = 'N/A';
-                if(emp.fecha_ingreso) {
-                    const [y, m, d] = emp.fecha_ingreso.split('-');
-                    fechaIngreso = `${d}/${m}/${y}`;
-                }
-                document.getElementById('verFechaIngreso').textContent = fechaIngreso;
+            // Foto
+            const img = document.getElementById('verFoto');
+            const icon = document.getElementById('verIconoDefault');
+            if(emp.foto_url) {
+                img.src = `/storage/${emp.foto_url}`;
+                img.classList.remove('d-none');
+                icon.classList.add('d-none');
+            } else {
+                img.classList.add('d-none');
+                icon.classList.remove('d-none');
+            }
 
-                // 2. Foto (Manejo de d-none)
-                const img = document.getElementById('verFoto');
-                const icon = document.getElementById('verIconoDefault');
-                
-                if (emp.foto_url) {
-                    img.src = `/storage/${emp.foto_url}`;
-                    img.classList.remove('d-none');
-                    icon.classList.add('d-none');
-                } else {
-                    img.src = '';
-                    img.classList.add('d-none');
-                    icon.classList.remove('d-none');
-                }
+            // Contactos
+            const divContactos = document.getElementById('verListaContactos');
+            divContactos.innerHTML = '';
+            if(emp.contactos?.length > 0) {
+                emp.contactos.forEach(c => {
+                    divContactos.innerHTML += `
+                        <div class="col-md-6 mb-2">
+                            <div class="d-flex align-items-start border rounded p-2 bg-white h-100">
+                                <i class="bi bi-telephone-fill text-primary mt-1 me-2"></i>
+                                <div><div class="fw-bold small text-muted">${c.tipo}</div><div class="fw-bold text-dark">${c.valor}</div></div>
+                            </div>
+                        </div>`;
+                });
+            } else {
+                divContactos.innerHTML = '<div class="col-12 text-muted fst-italic ps-3">Sin contactos adicionales.</div>';
+            }
 
-                // 3. Contactos
-                const divContactos = document.getElementById('verListaContactos');
-                divContactos.innerHTML = '';
-                if (emp.contactos && emp.contactos.length > 0) {
-                    emp.contactos.forEach(c => {
-                        divContactos.innerHTML += `
-                            <div class="col-md-6 mb-2">
-                                <div class="d-flex align-items-start border rounded p-2 bg-white h-100 shadow-sm">
-                                    <i class="bi bi-telephone-fill text-primary mt-1 me-2"></i>
-                                    <div>
-                                        <div class="fw-bold small text-uppercase text-muted" style="font-size:0.75rem">${c.tipo}</div>
-                                        <div class="fw-bold text-dark">${c.valor}</div>
-                                        ${c.descripcion ? `<div class="small text-muted">${c.descripcion}</div>` : ''}
-                                    </div>
-                                </div>
-                            </div>`;
-                    });
-                } else {
-                    divContactos.innerHTML = '<div class="col-12 text-muted fst-italic ps-3">No hay contactos adicionales.</div>';
-                }
+            // Activos
+            const tablaActivos = document.getElementById('tablaActivosAsignados');
+tablaActivos.innerHTML = '';
 
-                // 4. Activos
-                const tablaActivos = document.getElementById('tablaActivosAsignados');
-                tablaActivos.innerHTML = '';
-                if (emp.asignaciones_activas && emp.asignaciones_activas.length > 0) {
-                    emp.asignaciones_activas.forEach(asig => {
-                        tablaActivos.innerHTML += `
-                            <tr>
-                                <td><span class="badge bg-light text-dark border">${asig.activo.serie}</span></td>
-                                <td>${asig.activo.tipo.nombre}</td>
-                                <td class="small text-muted">${asig.activo.modelo}</td>
-                                <td class="small">${asig.fecha_asignacion}</td>
-                            </tr>`;
-                    });
-                } else {
-                    tablaActivos.innerHTML = '<tr><td colspan="4" class="text-center text-muted small py-3">No tiene activos asignados.</td></tr>';
-                }
+if (emp.asignaciones_activas && emp.asignaciones_activas.length > 0) {
+    emp.asignaciones_activas.forEach(asig => {
+        // CORRECCIÓN AQUÍ: Usamos .numero_serie en lugar de .serie
+        const serie = asig.activo.numero_serie || 'S/N'; 
+        
+        tablaActivos.innerHTML += `
+            <tr>
+                <td><span class="badge bg-light text-dark border">${serie}</span></td>
+                <td>${asig.activo.tipo.nombre}</td>
+                <td class="small text-muted">${asig.activo.modelo}</td>
+                <td class="small">${asig.fecha_asignacion}</td>
+            </tr>`;
+    });
+} else {
+    tablaActivos.innerHTML = '<tr><td colspan="4" class="text-center text-muted small py-3">No tiene activos asignados.</td></tr>';
+}
 
-                // 5. Botón PDF Historial
-                const btnPdf = document.getElementById('btnHistorialPdf');
-                if(btnPdf) btnPdf.href = `/empleados/${emp.id}/historial-pdf`;
+            // PDF Button
+            const btnPdf = document.getElementById('btnHistorialPdf');
+            if(btnPdf) btnPdf.href = `/empleados/${emp.id}/historial-pdf`;
 
-                // 6. Expediente Digital (Nueva Lógica)
-                renderizarTablaDocumentos(emp.documentos);
+            // Documentos
+            renderizarDocs(emp.documentos);
 
-                modalVerEmpleado.show();
-            })
-            .catch(error => {
-                console.error(error);
-                Swal.fire('Error', 'No se pudo cargar la información del empleado.', 'error');
-            });
+            modalVer.show();
+
+        } catch (e) {
+            console.error(e);
+            Swal.fire('Error', 'No se pudo cargar la información.', 'error');
+        }
     }
 
-    // --- EDITAR EMPLEADO ---
+    // --- EDITAR ---
     async function editarEmpleado(id) {
-        formEditarEmpleado.reset();
-        document.getElementById('contenedor-contactos-edit').innerHTML = ''; // Limpiar contactos
+        formEditar.reset();
+        document.getElementById('contenedor-contactos-edit').innerHTML = '';
+        
+        try {
+            const { data: emp } = await axios.get(`/empleados/${id}`);
+            
+            document.getElementById('editId').value = emp.id;
+            document.getElementById('editNumeroEmpleado').value = emp.numero_empleado;
+            document.getElementById('editCodigoEmpresa').value = emp.codigo_empresa || '';
+            document.getElementById('editNombre').value = emp.nombre;
+            document.getElementById('editApellidoPaterno').value = emp.apellido_paterno;
+            document.getElementById('editApellidoMaterno').value = emp.apellido_materno || '';
+            document.getElementById('editPuestoId').value = emp.puesto_id;
+            document.getElementById('editDepartamentoId').value = emp.departamento_id;
+            document.getElementById('editPlantaId').value = emp.planta_id;
+            document.getElementById('editCorreo').value = emp.correo || '';
+            document.getElementById('editFechaIngreso').value = emp.fecha_ingreso || '';
+            document.getElementById('editEstatus').value = emp.estatus;
 
-        axios.get(`/empleados/${id}`)
-            .then(response => {
-                const emp = response.data;
+            toggleBajaFields();
+            if(emp.estatus === 'Baja') {
+                document.getElementById('editFechaBaja').value = emp.fecha_baja;
+                document.getElementById('editMotivoBaja').value = emp.motivo_baja;
+            }
 
-                // Llenar campos simples
-                document.getElementById('editId').value = emp.id;
-                document.getElementById('editNumeroEmpleado').value = emp.numero_empleado;
-                document.getElementById('editCodigoEmpresa').value = emp.codigo_empresa || '';
-                document.getElementById('editNombre').value = emp.nombre;
-                document.getElementById('editApellidoPaterno').value = emp.apellido_paterno;
-                document.getElementById('editApellidoMaterno').value = emp.apellido_materno || '';
-                document.getElementById('editPuestoId').value = emp.puesto_id;
-                document.getElementById('editDepartamentoId').value = emp.departamento_id;
-                document.getElementById('editPlantaId').value = emp.planta_id;
-                document.getElementById('editCorreo').value = emp.correo || '';
-                document.getElementById('editFechaIngreso').value = emp.fecha_ingreso || '';
-                
-                // Estatus y Baja
-                const estatusSelect = document.getElementById('editEstatus');
-                estatusSelect.value = emp.estatus;
-                
-                // Activar campos de baja si aplica
-                if (emp.estatus === 'Baja') {
-                    document.getElementById('bajaFields').style.display = 'flex';
-                    document.getElementById('editFechaBaja').value = emp.fecha_baja;
-                    document.getElementById('editMotivoBaja').value = emp.motivo_baja;
-                } else {
-                    document.getElementById('bajaFields').style.display = 'none';
-                }
+            if(emp.contactos?.length > 0) {
+                emp.contactos.forEach(c => {
+                    if(typeof agregarFilaContactoEdit === 'function') agregarFilaContactoEdit(c);
+                });
+            }
 
-                // Llenar Contactos (Llama a función global definida en modal_editar.blade.php)
-                if (emp.contactos && emp.contactos.length > 0) {
-                    emp.contactos.forEach(c => {
-                        if(typeof agregarFilaContactoEdit === 'function') {
-                            agregarFilaContactoEdit(c);
-                        }
-                    });
-                }
-
-                modalEditarEmpleado.show();
-            })
-            .catch(error => {
-                console.error(error);
-                Swal.fire('Error', 'No se pudieron cargar los datos para edición.', 'error');
-            });
+            modalEditar.show();
+        } catch (e) {
+            Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
+        }
     }
 
-    // Guardar Edición
-    formEditarEmpleado.addEventListener('submit', async function(e) {
+    // --- GUARDAR EDICIÓN (ACTUALIZACIÓN DOM INMEDIATA) ---
+    formEditar.addEventListener('submit', async function(e) {
         e.preventDefault();
         const formData = new FormData(this);
-        formData.append('_method', 'PUT'); // Truco Laravel para PUT con Archivos
-        
+        formData.append('_method', 'PUT');
         const id = document.getElementById('editId').value;
 
         try {
-            const response = await fetch(`/empleados/${id}`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Accept': 'application/json'
-                },
-                body: formData
-            });
+            const res = await axios.post(`/empleados/${id}`, formData);
+            
+            if (res.data.success) {
+                modalEditar.hide();
+                
+                // ACTUALIZACIÓN VISUAL INSTANTÁNEA
+                const row = document.getElementById(`fila-empleado-${id}`);
+                if (row) {
+                    const emp = res.data.empleado;
+                    
+                    // 1. Actualizar Datos Data
+                    row.dataset.estatus = emp.estatus;
+                    row.dataset.nombre = `${emp.nombre} ${emp.apellido_paterno} ${emp.apellido_materno}`;
+                    row.dataset.correo = emp.correo || '';
 
-            const result = await response.json();
+                    // 2. Actualizar Badge
+                    const badge = row.querySelector('.badge-estatus');
+                    badge.className = `badge badge-estatus rounded-pill ${emp.estatus == 'Activo' ? 'bg-success bg-opacity-10 text-success' : (emp.estatus == 'Baja' ? 'bg-danger bg-opacity-10 text-danger' : 'bg-secondary bg-opacity-10 text-secondary')}`;
+                    badge.textContent = emp.estatus;
 
-            if (!response.ok) {
-                let msg = result.message || 'Error';
-                if(result.errors) msg = Object.values(result.errors).flat().join('\n');
-                throw new Error(msg);
-            }
+                    // 3. Actualizar Nombre
+                    const nombreEl = row.querySelector('.nombre-empleado');
+                    if(nombreEl) nombreEl.textContent = emp.nombre_completo;
 
-            if (result.success) {
-                modalEditarEmpleado.hide();
-                Swal.fire({ icon: 'success', title: 'Actualizado', text: result.message, timer: 1500, showConfirmButton: false })
-                    .then(() => window.location.reload());
+                    // 4. Re-filtrar por si cambió de estatus y debe desaparecer
+                    aplicarFiltros();
+                }
+
+                // Toast no intrusivo
+                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+                Toast.fire({ icon: 'success', title: 'Actualizado correctamente' });
             }
         } catch (error) {
-            Swal.fire({ icon: 'error', title: 'Error al actualizar', text: error.message });
+            Swal.fire('Error', error.response?.data?.message || 'Error al actualizar', 'error');
         }
     });
 
-    // Toggle para campos de baja (Helper)
-    function toggleBajaFields() {
-        const estatus = document.getElementById('editEstatus').value;
-        const fields = document.getElementById('bajaFields');
-        const inputs = fields.querySelectorAll('input, select');
-
-        if (estatus === 'Baja') {
-            fields.style.display = 'flex';
-            inputs.forEach(i => i.required = true);
-        } else {
-            fields.style.display = 'none';
-            inputs.forEach(i => i.required = false);
-        }
-    }
-
-
     // ==========================================
-    // 4. LÓGICA DE EXPEDIENTE DIGITAL
+    // 4. EXPEDIENTE DIGITAL
     // ==========================================
-
-    // Renderizar tabla de documentos
-    function renderizarTablaDocumentos(docs) {
+    function renderizarDocs(docs) {
         const tbody = document.getElementById('listaDocumentos');
         if(!tbody) return;
-        
         tbody.innerHTML = '';
-
-        if (docs && docs.length > 0) {
-            docs.forEach(doc => {
-                const fecha = new Date(doc.created_at).toLocaleDateString();
+        if(docs?.length > 0) {
+            docs.forEach(d => {
+                const fecha = new Date(d.created_at).toLocaleDateString();
                 tbody.innerHTML += `
                     <tr>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-file-earmark-pdf text-danger fs-5 me-2"></i>
-                                <div>
-                                    <div class="fw-bold small">${doc.tipo_documento}</div>
-                                    <div class="text-muted" style="font-size: 10px;">${doc.nombre.substring(0, 25)}...</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="small text-muted align-middle">${fecha}</td>
-                        <td class="text-end align-middle">
-                            <a href="/storage/${doc.ruta_archivo}" target="_blank" class="btn btn-sm btn-link text-primary p-0 me-2" title="Descargar">
-                                <i class="bi bi-download"></i>
-                            </a>
-                            <button onclick="eliminarDocumento(${doc.id})" class="btn btn-sm btn-link text-danger p-0" title="Eliminar">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
+                        <td><div class="d-flex align-items-center"><i class="bi bi-file-earmark-pdf text-danger fs-5 me-2"></i><div><div class="fw-bold small">${d.tipo_documento}</div><div class="text-muted" style="font-size:10px;">${d.nombre.substring(0,20)}...</div></div></div></td>
+                        <td class="small text-muted">${fecha}</td>
+                        <td class="text-end"><a href="/storage/${d.ruta_archivo}" target="_blank" class="btn btn-sm btn-link"><i class="bi bi-download"></i></a><button onclick="eliminarDoc(${d.id})" class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button></td>
+                    </tr>`;
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted small py-3 fst-italic">No hay documentos en el expediente SIGMA.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted small py-3 fst-italic">Carpeta vacía.</td></tr>';
         }
     }
 
-    // Subir Documento
-    const formSubirDoc = document.getElementById('formSubirDocumento');
-    if(formSubirDoc) {
-        formSubirDoc.addEventListener('submit', function(e) {
+    const formDoc = document.getElementById('formSubirDocumento');
+    if(formDoc) {
+        formDoc.addEventListener('submit', async function(e) {
             e.preventDefault();
-            if(!currentEmpleadoId) return;
-
-            const archivoInput = document.getElementById('docArchivo');
-            if(archivoInput.files.length === 0) return;
-
-            const formData = new FormData();
-            formData.append('tipo_documento', document.getElementById('docTipo').value);
-            formData.append('archivo', archivoInput.files[0]);
-
             const btn = this.querySelector('button[type="submit"]');
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Subiendo...';
-
-            axios.post(`/empleados/${currentEmpleadoId}/documentos`, formData)
-                .then(response => {
-                    if(response.data.success) {
-                        // Recargar solo los docs
-                        axios.get(`/empleados/${currentEmpleadoId}`).then(res => {
-                            renderizarTablaDocumentos(res.data.documentos);
-                        });
-                        this.reset();
-                        Swal.fire({ icon: 'success', title: 'Subido', timer: 1000, showConfirmButton: false, position: 'top-end', toast: true });
-                    }
-                })
-                .catch(error => {
-                    console.error(error);
-                    Swal.fire('Error', 'Verifique que el archivo sea PDF/Imagen y menor a 1MB.', 'error');
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = originalHtml;
-                });
-        });
-    }
-
-    // Eliminar Documento
-    window.eliminarDocumento = function(docId) {
-        Swal.fire({
-            title: '¿Eliminar documento?',
-            text: "Se borrará permanentemente del expediente.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Sí, borrar',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                axios.delete(`/empleados/documentos/${docId}`)
-                    .then(response => {
-                        if(response.data.success) {
-                            axios.get(`/empleados/${currentEmpleadoId}`).then(res => {
-                                renderizarTablaDocumentos(res.data.documentos);
-                            });
-                            Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1000, showConfirmButton: false, position: 'top-end', toast: true });
-                        }
-                    })
-                    .catch(() => Swal.fire('Error', 'No se pudo eliminar el archivo.', 'error'));
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            
+            try {
+                const res = await axios.post(`/empleados/${currentEmpleadoId}/documentos`, new FormData(this));
+                if(res.data.success) {
+                    const { data: emp } = await axios.get(`/empleados/${currentEmpleadoId}`);
+                    renderizarDocs(emp.documentos);
+                    this.reset();
+                    Swal.fire({ icon: 'success', title: 'Subido', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                }
+            } catch (e) {
+                Swal.fire('Error', 'Verifique el archivo (Max 1MB).', 'error');
+            } finally {
+                btn.disabled = false; btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i> Subir Archivo';
             }
         });
     }
 
+    window.eliminarDoc = function(id) {
+        Swal.fire({ title: '¿Eliminar?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, borrar' }).then(async (r) => {
+            if(r.isConfirmed) {
+                try {
+                    const res = await axios.delete(`/empleados/documentos/${id}`);
+                    if(res.data.success) {
+                        const { data: emp } = await axios.get(`/empleados/${currentEmpleadoId}`);
+                        renderizarDocs(emp.documentos);
+                        Swal.fire({ icon: 'success', title: 'Eliminado', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                    }
+                } catch(e) { Swal.fire('Error', 'No se pudo eliminar.', 'error'); }
+            }
+        });
+    }
+
+    function toggleBajaFields() {
+        const estatus = document.getElementById('editEstatus').value;
+        const fields = document.getElementById('bajaFields');
+        if(estatus === 'Baja') {
+            fields.style.display = 'flex';
+            fields.querySelectorAll('input, select').forEach(i => i.required = true);
+        } else {
+            fields.style.display = 'none';
+            fields.querySelectorAll('input, select').forEach(i => i.required = false);
+        }
+    }
+
+    // --- INICIALIZACIÓN DE SELECT2 ---
+    $(document).ready(function() {
+        // Cargar scripts de Select2 dinámicamente si no usas npm
+        $.getScript("https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js", function() {
+            
+            // Función helper para aplicar Select2
+            const initSelect2 = (selector, modalParent) => {
+                $(selector).select2({
+                    theme: 'bootstrap-5',
+                    dropdownParent: $(modalParent), // VITAL: Para que funcione el input de búsqueda en el modal
+                    width: '100%',
+                    language: {
+                        noResults: function() { return "No se encontraron resultados"; }
+                    }
+                });
+            };
+
+            // Inicializar en Modal Nuevo
+            $('#modalNuevoEmpleado').on('shown.bs.modal', function () {
+                initSelect2('#modalNuevoEmpleado select[name="puesto_id"]', '#modalNuevoEmpleado');
+                initSelect2('#modalNuevoEmpleado select[name="departamento_id"]', '#modalNuevoEmpleado');
+                initSelect2('#modalNuevoEmpleado select[name="planta_id"]', '#modalNuevoEmpleado');
+            });
+
+            // Inicializar en Modal Editar
+            $('#modalEditarEmpleado').on('shown.bs.modal', function () {
+                initSelect2('#editPuestoId', '#modalEditarEmpleado');
+                initSelect2('#editDepartamentoId', '#modalEditarEmpleado');
+                initSelect2('#editPlantaId', '#modalEditarEmpleado');
+            });
+        });
+    });
 </script>
+
+@endpush
 @endpush
