@@ -169,12 +169,58 @@
     </div>
 </div>
 
+{{-- MODAL BAJA DEFINITIVA (Igual al de Activos) --}}
+<div class="modal fade" id="modalBajaAlmacen" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h6 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Baja Definitiva</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formBajaAlmacen">
+                <input type="hidden" id="baja_activo_id" name="id">
+                <div class="modal-body">
+                    <div class="alert alert-soft-danger text-danger border-0 small mb-3">
+                        <i class="bi bi-info-circle me-1"></i> 
+                        Estás a punto de dar de baja el activo <strong id="lblActivoBaja"></strong>. 
+                        Esta acción retirará el equipo del inventario operativo permanentemente.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Motivo de Baja <span class="text-danger">*</span></label>
+                        <select class="form-select" name="motivo_baja_id" id="motivo_baja_id" required>
+                            <option value="">Seleccione...</option>
+                            @foreach($motivosBaja as $motivo)
+                                <option value="{{ $motivo->id }}">{{ $motivo->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Comentarios / Justificación <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="comentarios" id="comentarios_baja" rows="3" required placeholder="Detalle por qué se da de baja..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar Baja</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
+    // --- INICIALIZACIÓN DE MODALES ---
     var modalEstado = new bootstrap.Modal(document.getElementById('modalEstado'));
     var modalVer = new bootstrap.Modal(document.getElementById('modalVerActivo'));
+    // Nuevo modal para la baja con motivo
+    var modalBaja = new bootstrap.Modal(document.getElementById('modalBajaAlmacen'));
 
-    // --- 1. GESTIONAR ESTADO (Mover a Manto, Diagnostico, Pendiente Baja) ---
+    // ======================================================
+    // 1. GESTIONAR ESTADO (Mover a Manto, Diagnostico, etc.)
+    // ======================================================
     window.abrirModalEstado = function(id, estadoActualId) {
         document.getElementById('activo_id_estado').value = id;
         document.getElementById('nuevo_estado_id').value = estadoActualId;
@@ -189,7 +235,6 @@
         var obs = document.getElementById('obs_estado').value;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-        // NOTA: Usamos la ruta corregida /almacen/{id}/cambiar-estado
         fetch(`/almacen/${id}/cambiar-estado`, {
             method: 'POST',
             headers: {
@@ -212,13 +257,35 @@
         });
     });
 
-    // --- 2. CONFIRMAR BAJA DEFINITIVA ---
+    // ======================================================
+    // 2. CONFIRMAR BAJA DEFINITIVA (CON MODAL)
+    // ======================================================
     window.confirmarBajaDefinitiva = function(id, codigo) {
-        if(!confirm(`¿CONFIRMAR BAJA DEFINITIVA?\n\nActivo: ${codigo}\n\nEsta acción NO se puede deshacer. El activo quedará archivado permanentemente.`)) {
-            return;
-        }
+        // En lugar de confirm(), configuramos y abrimos el modal
+        document.getElementById('baja_activo_id').value = id;
+        document.getElementById('lblActivoBaja').textContent = codigo;
+        
+        // Limpiamos los campos del formulario por si quedaron sucios
+        document.getElementById('motivo_baja_id').value = "";
+        document.getElementById('comentarios_baja').value = "";
+        
+        modalBaja.show();
+    }
 
+    // Procesar el formulario del Modal de Baja
+    document.getElementById('formBajaAlmacen').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        var id = document.getElementById('baja_activo_id').value;
+        var motivo = document.getElementById('motivo_baja_id').value;
+        var comentarios = document.getElementById('comentarios_baja').value;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        // Feedback visual: Botón en estado "Cargando..."
+        var btnSubmit = this.querySelector('button[type="submit"]');
+        var originalText = btnSubmit.innerHTML;
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
 
         fetch(`/almacen/${id}/confirmar-baja`, {
             method: 'POST',
@@ -226,28 +293,39 @@
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': csrfToken
             },
-            body: JSON.stringify({})
+            body: JSON.stringify({ 
+                motivo_baja_id: motivo, 
+                comentarios: comentarios 
+            })
         })
         .then(res => res.json())
         .then(data => {
             if(data.success) {
-                alert('Activo dado de baja correctamente.');
-                location.reload();
+                modalBaja.hide();
+                location.reload(); // Recargar para ver cambios
             } else {
                 alert('Error: ' + data.message);
+                // Restaurar botón si hubo error lógico
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = originalText;
             }
         })
         .catch(err => {
             console.error(err);
-            alert('Error al procesar la baja.');
+            alert('Error de conexión al procesar la baja.');
+            // Restaurar botón si hubo error de red
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalText;
         });
-    }
+    });
 
-    // --- 3. VER DETALLES (Solución pantalla negra) ---
+    // ======================================================
+    // 3. VER DETALLES (Solución pantalla negra - AJAX)
+    // ======================================================
     window.verActivo = function(id) {
         var contentEl = document.getElementById('modalVerActivoContent');
 
-        // Spinner de carga
+        // Spinner de carga inicial
         contentEl.innerHTML = `
             <div class="modal-body text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
@@ -259,7 +337,7 @@
         // Solicitamos la vista parcial por AJAX
         fetch(`/activos/${id}`, {
             headers: { 
-                'X-Requested-With': 'XMLHttpRequest', // Indica a Laravel que es AJAX
+                'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'text/html'
             }
         })
@@ -268,7 +346,7 @@
             return response.text();
         })
         .then(html => {
-            // Insertamos el HTML devuelto (debe ser una vista parcial, sin <html> ni <body>)
+            // Insertamos el HTML devuelto
             contentEl.innerHTML = html;
         })
         .catch(err => {

@@ -25,54 +25,35 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
 
-    // --- GRUPO 1: SOLO LECTURA (Empleado, Admin, Super Admin) ---
-    // Todos pueden ver seguimiento
+    // --- GRUPO 1: SOLO LECTURA ---
     Route::get('seguimiento', [SeguimientoController::class, 'index'])->name('seguimiento.index');
     Route::get('seguimiento/{id}', [SeguimientoController::class, 'show'])->name('seguimiento.show');
 
 
-    // --- GRUPO 2: GESTIÓN INTERMEDIA (Admin y Super Admin) ---
-    // Empleado NO entra aquí
+    // --- GRUPO 2: GESTIÓN INTERMEDIA ---
     Route::middleware(['role:Admin|Super Admin'])->group(function () {
 
-        // ==========================================
-        //         MÓDULO DE ASIGNACIONES (CORREGIDO)
-        // ==========================================
-        
-        // 1. Acciones AJAX y Formularios (Lo que faltaba o daba error)
+        // --- ASIGNACIONES ---
         Route::post('asignaciones/subir-documento', [AsignacionController::class, 'subirDocumento'])->name('asignaciones.subir_documento');
         Route::get('asignaciones/{id}/historial-documentos', [AsignacionController::class, 'obtenerHistorial'])->name('asignaciones.historial_documentos');
         Route::post('asignaciones/{id}/devolver', [AsignacionController::class, 'devolver'])->name('asignaciones.devolver');
 
-        // 2. Generación de PDFs (Nombres alineados con el Controlador y la Vista)
         Route::get('asignaciones/carta/{id}', [AsignacionController::class, 'imprimirCarta'])->name('asignaciones.carta');
         Route::get('asignaciones/carta-lote/{loteId}', [AsignacionController::class, 'imprimirCartaPorLote'])->name('asignaciones.carta_lote');
-        Route::get('asignaciones/carta-devolucion/{id}', [AsignacionController::class, 'imprimirCartaDevolucion'])->name('asignaciones.carta_devolucion'); // Corregido nombre de ruta
+        Route::get('asignaciones/carta-devolucion/{id}', [AsignacionController::class, 'imprimirCartaDevolucion'])->name('asignaciones.carta_devolucion');
 
-        // 3. Resource Principal (CRUD básico)
         Route::resource('asignaciones', AsignacionController::class);
 
-
         // --- ALMACÉN ---
-        // Rutas personalizadas para acciones específicas (Baja y Cambio de Estado)
         Route::post('almacen/{id}/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
         Route::post('almacen/{id}/confirmar-baja', [AlmacenController::class, 'confirmarBajaDefinitiva'])->name('almacen.confirmar_baja');
-        
-        // Resource debe ir al final para evitar conflictos de prelación, limitamos a index
         Route::resource('almacen', AlmacenController::class)->only(['index']);
         
-
         // --- EMPLEADOS ---
-        // Rutas para Expediente Digital (Documentos SIGMA)
         Route::post('/empleados/{id}/documentos', [EmpleadoController::class, 'subirDocumento'])->name('empleados.documentos.store');
         Route::delete('/empleados/documentos/{id}', [EmpleadoController::class, 'eliminarDocumento'])->name('empleados.documentos.destroy');
-        
-        // Historial PDF
         Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
-        
-        // Resource principal (Excluyendo destroy que es solo para Super Admin)
         Route::resource('empleados', EmpleadoController::class)->except(['destroy']);
-        
         
         // --- ACTIVOS ---
         Route::get('/activos/bajas', [ActivoController::class, 'bajas'])->name('activos.bajas');
@@ -81,26 +62,31 @@ Route::middleware(['auth'])->group(function () {
     });
 
 
-    // --- GRUPO 3: SUPER ADMIN (Poder Absoluto) ---
+    // --- GRUPO 3: SUPER ADMIN ---
     Route::middleware(['role:Super Admin'])->group(function () {
-        
-        // Acciones destructivas o críticas
         Route::delete('empleados/{empleado}', [EmpleadoController::class, 'destroy'])->name('empleados.destroy');
         Route::delete('activos/{activo}', [ActivoController::class, 'destroy'])->name('activos.destroy');
-        
-        // Dar de baja un activo (Considerado crítico)
         Route::post('/activos/{id}/baja', [ActivoController::class, 'darBaja'])->name('activos.baja');
-        
-        // Catálogos y usuarios del sistema (Opcional, si existieran controladores)
-        // Route::resource('usuarios', UserController::class);
     });
 
     // --- REPORTES (Admin y Super Admin) ---
+    // CORRECCIONES APLICADAS AQUÍ:
     Route::middleware(['role:Admin|Super Admin'])->group(function () {
-        Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
-        Route::get('/reportes/inventario-pdf', [ReporteController::class, 'inventarioPdf'])->name('reportes.inventario_pdf');
-        Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])->name('reportes.bajas_pdf'); // Ajustado al nombre del método en controlador
-        Route::get('/reportes/exportar-excel', [ReporteController::class, 'generarInventarioCSV'])->name('reportes.exportar_excel'); // Ajustado: método se llamaba 'generarInventarioCSV' en el controlador
+        
+        Route::get('/reportes', [ReporteController::class, 'index'])
+            ->name('reportes.index');
+        
+        // 1. PDF Inventario: Apunta a 'generarInventario' y se llama 'reportes.inventario'
+        Route::get('/reportes/inventario-pdf', [ReporteController::class, 'generarInventario'])
+            ->name('reportes.inventario');
+        
+        // 2. PDF Bajas: Apunta a 'bajasPdf' y se llama 'reportes.bajas'
+        Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])
+            ->name('reportes.bajas_pdf');
+            
+        // 3. Excel/CSV: Apunta a 'generarInventarioCSV' y se llama 'reportes.inventario_csv'
+        Route::get('/reportes/exportar-excel', [ReporteController::class, 'generarInventarioCSV'])
+            ->name('reportes.inventario_csv');
     });
 
 });

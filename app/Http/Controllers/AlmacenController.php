@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activo;
 use App\Models\CatalogoEstadoActivo;
+use App\Models\CatalogoMotivoBaja; // <--- 1. IMPORTANTE: Importar el modelo
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,24 +13,24 @@ class AlmacenController extends Controller
     public function index()
     {
         // 1. Traer todos los activos que NO están asignados (Estado != 2)
-        // Excluimos 'En Uso' (2) porque esos se gestionan en Asignaciones
         $activosAlmacen = Activo::with(['tipo', 'marca', 'estado', 'ubicacion'])
             ->where('estado_id', '!=', 2) 
             ->orderBy('updated_date', 'desc')
             ->get();
 
         // 2. Filtrar estados para el Modal "Gestionar"
-        // Excluimos ID 2 (En Uso) y ID 6 (Baja Definitiva)
-        // Para llegar a Baja Definitiva, el usuario debe pasar primero por "Pendiente de Baja"
         $estados = CatalogoEstadoActivo::whereNotIn('id', [2, 6])->orderBy('nombre')->get();
 
-        // 3. Clasificación para pestañas
+        // 3. Obtener catálogo de motivos para el modal de Baja [NUEVO]
+        $motivosBaja = CatalogoMotivoBaja::all();
+
+        // 4. Clasificación para pestañas
         $disponibles = $activosAlmacen->where('estado_id', 1);
         $enDiagnostico = $activosAlmacen->where('estado_id', 4);
         $enMantenimiento = $activosAlmacen->where('estado_id', 3);
         $bajas = $activosAlmacen->whereIn('estado_id', [5, 6]);
 
-        // 4. KPIS
+        // 5. KPIS
         $kpis = [
             'total_items' => $activosAlmacen->count(),
             'total_valor' => $activosAlmacen->sum('costo'),
@@ -40,6 +41,7 @@ class AlmacenController extends Controller
         return view('almacen.index', compact(
             'activosAlmacen',
             'estados',
+            'motivosBaja', // <--- AGREGADO A LA VISTA
             'disponibles',
             'enDiagnostico',
             'enMantenimiento',
@@ -83,15 +85,25 @@ class AlmacenController extends Controller
     {
         $activo = Activo::findOrFail($id);
 
+        // Validar que recibimos motivo y comentarios [NUEVO]
+        $request->validate([
+            'motivo_baja_id' => 'required|exists:catalogo_motivosbaja,id',
+            'comentarios' => 'required|string|min:5'
+        ]);
+
         // Solo permitir si ya está en pendiente (ID 5)
         if ($activo->estado_id != 5) {
             return response()->json(['success' => false, 'message' => 'El activo debe estar en Pendiente de Baja primero.'], 400);
         }
 
-        DB::transaction(function() use ($activo) {
-            $activo->estado_id = 6; // Baja Definitiva (ID 6 según tu dump SQL)
+        DB::transaction(function() use ($activo, $request) {
+            $activo->estado_id = 6; // Baja Definitiva
             $activo->fecha_baja = now();
-            $activo->observaciones .= "\n[SISTEMA]: Baja Definitiva aplicada el " . date('Y-m-d H:i');
+            
+            // Guardamos el motivo y agregamos la justificación al historial [NUEVO]
+            $activo->motivo_baja_id = $request->motivo_baja_id;
+            $activo->observaciones .= "\n[BAJA DEFINITIVA " . date('Y-m-d H:i') . "]: " . $request->comentarios;
+            
             $activo->save();
         });
 

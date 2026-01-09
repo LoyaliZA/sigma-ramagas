@@ -245,34 +245,43 @@ class EmpleadoController extends Controller
 
     public function subirDocumento(Request $request, $id)
     {
-        try {
-            $request->validate([
-                'tipo_documento' => 'required|string',
-                'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:1024',
+        $request->validate([
+            'tipo_documento' => 'required|string',
+            'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', // Máx 5MB
+            // Validamos nombre_personalizado solo si tipo_documento es Personalizar
+            'nombre_personalizado' => 'required_if:tipo_documento,Personalizar|nullable|string|max:150',
+        ]);
+
+        $empleado = Empleado::findOrFail($id);
+
+        if ($request->hasFile('archivo')) {
+            $archivo = $request->file('archivo');
+            
+            // LÓGICA DE NOMBRE:
+            // Si eligió "Personalizar", usamos el input de texto.
+            // Si eligió otra cosa, usamos el valor del select.
+            $nombreDocumento = $request->tipo_documento === 'Personalizar' 
+                ? $request->nombre_personalizado 
+                : $request->tipo_documento;
+
+            // Generar nombre de archivo único
+            $nombreArchivo = 'DOC_' . $empleado->numero_empleado . '_' . time() . '.' . $archivo->getClientOriginalExtension();
+            
+            // Guardar en storage/app/public/empleados/documentos
+            $ruta = $archivo->storeAs('empleados/documentos', $nombreArchivo, 'public');
+
+            // Guardar registro en BD
+            $empleado->documentos()->create([
+                'nombre' => $nombreDocumento, // Guardamos el nombre final
+                'ruta_archivo' => $ruta,
+                'tipo_documento' => 'Expediente', // Categoría interna fija
+                'subido_por' => auth()->id(),
             ]);
 
-            $empleado = Empleado::findOrFail($id);
-
-            if ($request->hasFile('archivo')) {
-                $file = $request->file('archivo');
-                $safeName = str_replace(' ', '_', $request->tipo_documento);
-                $filename = strtoupper($safeName) . '_' . $empleado->numero_empleado . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('expedientes/' . $empleado->id, $filename, 'public');
-
-                $empleado->documentos()->create([
-                    'nombre' => $filename,
-                    'ruta_archivo' => $path,
-                    'tipo_documento' => $request->tipo_documento,
-                    'subido_por' => auth()->id()
-                ]);
-
-                return response()->json(['success' => true, 'message' => 'Documento subido correctamente.']);
-            }
-            return response()->json(['success' => false, 'message' => 'No se envió ningún archivo.'], 400);
-
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al subir: ' . $e->getMessage()], 500);
+            return response()->json(['success' => true, 'message' => 'Documento subido correctamente']);
         }
+
+        return response()->json(['success' => false, 'message' => 'No se recibió ningún archivo']);
     }
 
     public function eliminarDocumento($id)
