@@ -12,17 +12,17 @@ class AlmacenController extends Controller
     {
         // 1. Traer todos los activos que NO están asignados (En Almacén)
         $activosAlmacen = Activo::with(['tipo', 'marca', 'estado', 'ubicacion'])
-                    ->where('estado_id', '!=', 2) // Excluir los 'En Uso'
-                    ->orderBy('updated_date', 'desc')
-                    ->get();
+            ->where('estado_id', '!=', 2) // Excluir los 'En Uso'
+            ->orderBy('updated_date', 'desc')
+            ->get();
 
         $estados = CatalogoEstadoActivo::where('id', '!=', 2)->get();
 
         // 2. Clasificación para las pestañas (Tu lógica original)
-        $disponibles = $activosAlmacen->where('estado_id', 1);       
-        $enDiagnostico = $activosAlmacen->where('estado_id', 4);     
-        $enMantenimiento = $activosAlmacen->where('estado_id', 3);   
-        $bajas = $activosAlmacen->whereIn('estado_id', [5, 6]);      
+        $disponibles = $activosAlmacen->where('estado_id', 1);
+        $enDiagnostico = $activosAlmacen->where('estado_id', 4);
+        $enMantenimiento = $activosAlmacen->where('estado_id', 3);
+        $bajas = $activosAlmacen->whereIn('estado_id', [5, 6]);
 
         // 3. DATOS PARA KPIS (NUEVO ESTÁNDAR DE DISEÑO)
         $kpis = [
@@ -33,11 +33,11 @@ class AlmacenController extends Controller
         ];
 
         return view('almacen.index', compact(
-            'activosAlmacen', 
-            'estados', 
-            'disponibles', 
-            'enDiagnostico', 
-            'enMantenimiento', 
+            'activosAlmacen',
+            'estados',
+            'disponibles',
+            'enDiagnostico',
+            'enMantenimiento',
             'bajas',
             'kpis' // Enviamos los contadores
         ));
@@ -51,13 +51,13 @@ class AlmacenController extends Controller
         ]);
 
         $activo = Activo::findOrFail($id);
-        
-        if($activo->estado_id == 2) {
+
+        if ($activo->estado_id == 2) {
             return response()->json(['success' => false, 'message' => 'No puedes mover un activo asignado.'], 400);
         }
 
         $activo->estado_id = $request->nuevo_estado_id;
-        if($request->observaciones) {
+        if ($request->observaciones) {
             $activo->observaciones .= "\n[" . date('Y-m-d H:i') . "] Cambio estado: " . $request->observaciones;
         }
         $activo->save();

@@ -21,39 +21,35 @@ use Intervention\Image\Drivers\Gd\Driver;
 
 class ActivoController extends Controller
 {
-    /**
-     * Muestra el inventario activo (excluyendo bajas definitivas).
-     */
     public function index(Request $request)
     {
-        // 1. KPIs
+        // ... (Tu código del index está bien, no cambia) ...
         $kpiTotal = Activo::where('estado_id', '!=', 6)->count();
         $kpiEnUso = Activo::where('estado_id', 2)->count();
         $kpiDisponibles = Activo::where('estado_id', 1)->count();
         $kpiMantenimiento = Activo::whereIn('estado_id', [3, 4])->count();
 
-        // 2. Consulta
-        $query = Activo::with(['tipo', 'marca', 'estado', 'ubicacion'])
-                        ->where('estado_id', '!=', 6);
+        $query = Activo::with(['tipo', 'marca', 'estado', 'ubicacion'])->where('estado_id', '!=', 6);
 
         if ($request->filled('q')) {
             $busqueda = $request->input('q');
-            $query->where(function($q) use ($busqueda) {
+            $query->where(function ($q) use ($busqueda) {
                 $q->where('codigo_interno', 'like', "%$busqueda%")
-                  ->orWhere('numero_serie', 'like', "%$busqueda%")
-                  ->orWhere('modelo', 'like', "%$busqueda%")
-                  ->orWhereHas('marca', fn($qM) => $qM->where('nombre', 'like', "%$busqueda%"))
-                  ->orWhereHas('tipo', fn($qT) => $qT->where('nombre', 'like', "%$busqueda%"));
+                    ->orWhere('numero_serie', 'like', "%$busqueda%")
+                    ->orWhere('modelo', 'like', "%$busqueda%")
+                    ->orWhereHas('marca', fn($qM) => $qM->where('nombre', 'like', "%$busqueda%"))
+                    ->orWhereHas('tipo', fn($qT) => $qT->where('nombre', 'like', "%$busqueda%"));
             });
         }
 
-        if ($request->filled('tipo_id')) $query->where('tipo_id', $request->tipo_id);
-        if ($request->filled('estado_id')) $query->where('estado_id', $request->estado_id);
+        if ($request->filled('tipo_id'))
+            $query->where('tipo_id', $request->tipo_id);
+        if ($request->filled('estado_id'))
+            $query->where('estado_id', $request->estado_id);
 
         $limit = $request->input('limit', 10);
         $activos = $query->orderBy('created_date', 'desc')->paginate($limit)->appends($request->query());
-        
-        // 3. Catálogos
+
         $tipos = CatalogoTipoActivo::orderBy('nombre')->get();
         $marcas = CatalogoMarca::orderBy('nombre')->get();
         $estados = CatalogoEstadoActivo::where('id', '!=', 6)->orderBy('nombre')->get();
@@ -64,9 +60,20 @@ class ActivoController extends Controller
         $motivosBaja = CatalogoMotivoBaja::orderBy('nombre')->get();
 
         return view('activos.index', compact(
-            'activos', 'limit', 'tipos', 'marcas', 'estados', 'ubicaciones', 'condiciones', 
-            'tiposRam', 'tiposDisco', 'motivosBaja',
-            'kpiTotal', 'kpiEnUso', 'kpiDisponibles', 'kpiMantenimiento'
+            'activos',
+            'limit',
+            'tipos',
+            'marcas',
+            'estados',
+            'ubicaciones',
+            'condiciones',
+            'tiposRam',
+            'tiposDisco',
+            'motivosBaja',
+            'kpiTotal',
+            'kpiEnUso',
+            'kpiDisponibles',
+            'kpiMantenimiento'
         ));
     }
 
@@ -84,47 +91,56 @@ class ActivoController extends Controller
             ]);
 
             $data = $request->except(['imagen', 'especificaciones']);
-            
-            // Construcción JSON Especificaciones
+
+            // Specs
             $specs = [];
-            if($request->filled('cpu_modelo')) $specs['procesador'] = $request->cpu_modelo;
-            
-            if($request->filled('ram_capacidad')) {
+            if ($request->filled('cpu_modelo'))
+                $specs['procesador'] = $request->cpu_modelo;
+
+            if ($request->filled('ram_capacidad')) {
                 $tipoRamNombre = $request->ram_tipo_texto;
-                if(!$tipoRamNombre && $request->ram_tipo_id) {
+                if (!$tipoRamNombre && $request->ram_tipo_id) {
                     $tipoRamNombre = CatalogoTipoRam::find($request->ram_tipo_id)?->nombre;
                 }
                 $specs['ram'] = trim($request->ram_capacidad . ' ' . $request->ram_unidad . ' ' . $tipoRamNombre);
             }
 
-            if($request->filled('disco_capacidad')) {
+            if ($request->filled('disco_capacidad')) {
                 $tipoDiscoNombre = $request->disco_tipo_texto;
-                if(!$tipoDiscoNombre && $request->disco_tipo_id) {
+                if (!$tipoDiscoNombre && $request->disco_tipo_id) {
                     $tipoDiscoNombre = CatalogoTipoAlmacenamiento::find($request->disco_tipo_id)?->nombre;
                 }
                 $specs['almacenamiento'] = trim($request->disco_capacidad . ' ' . $request->disco_unidad . ' ' . $tipoDiscoNombre);
             }
 
-            if($request->filled('imei')) $specs['imei'] = $request->imei;
-            if($request->filled('pantalla_tamano')) $specs['pantalla'] = $request->pantalla_tamano;
-            if($request->filled('so_version')) $specs['sistema_operativo'] = $request->so_version;
-            if($request->filled('spec_otras')) $specs['otras'] = $request->spec_otras;
+            if ($request->filled('imei'))
+                $specs['imei'] = $request->imei;
+            if ($request->filled('pantalla_tamano'))
+                $specs['pantalla'] = $request->pantalla_tamano;
+            if ($request->filled('so_version'))
+                $specs['sistema_operativo'] = $request->so_version;
+            if ($request->filled('spec_otras'))
+                $specs['otras'] = $request->spec_otras;
 
             $data['especificaciones'] = $specs;
 
-            // Procesamiento de Imagen (Input 'imagen' -> DB 'foto')
-            if ($request->hasFile('imagen')) {
+            // Procesamiento de Imagen -> Guardar en columna 'imagen'
+            if ($request->hasFile('imagen')) { // El input del formulario se llama 'imagen'
+                // Guardamos en la columna 'foto' de la BD
+                if (isset($activo) && $activo->foto) {
+                    Storage::disk('public')->delete($activo->foto);
+                }
                 $data['foto'] = $this->procesarImagen($request->file('imagen'));
             }
 
             $activo = Activo::create($data);
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Activo registrado: ' . $activo->codigo_interno
             ], 201);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error($e->getMessage());
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
@@ -132,12 +148,20 @@ class ActivoController extends Controller
 
     public function show(Request $request, $id)
     {
+        // Cargamos todas las relaciones necesarias, incluyendo motivo de baja
         $activo = Activo::with(['tipo', 'marca', 'estado', 'ubicacion', 'motivoBaja'])->findOrFail($id);
 
+        // MODIFICACIÓN CLAVE:
+        // Si el cliente pide JSON explícitamente (Accept: application/json), devolvemos JSON.
+        // Si es solo una petición AJAX estándar (sin header específico), devolvemos la vista parcial.
+        if ($request->wantsJson()) {
+            return response()->json($activo);
+        }
+
         if ($request->ajax()) {
-            // CORREGIDO: Apunta al archivo existente modal_ver.blade.php
             return view('activos.modal_ver', compact('activo'))->render();
         }
+
         return response()->json($activo);
     }
 
@@ -145,7 +169,7 @@ class ActivoController extends Controller
     {
         $activo = Activo::findOrFail($id);
 
-        if($activo->estado_id == 6) {
+        if ($activo->estado_id == 6) {
             return response()->json(['success' => false, 'message' => 'No se puede editar un activo dado de baja.'], 403);
         }
 
@@ -160,25 +184,34 @@ class ActivoController extends Controller
                 return response()->json(['success' => false, 'message' => 'Use el botón "Dar de Baja" para retirar el equipo.'], 422);
             }
 
-            $data = $request->except(['codigo_interno', 'imagen', 'especificaciones']); 
-            
+            $data = $request->except(['codigo_interno', 'imagen', 'especificaciones']);
+
             // Reconstruir specs
             $specs = $activo->especificaciones ?? [];
-            
-            if($request->filled('cpu_modelo')) $specs['procesador'] = $request->cpu_modelo;
-            if($request->filled('imei')) $specs['imei'] = $request->imei;
-            if($request->filled('pantalla_tamano')) $specs['pantalla'] = $request->pantalla_tamano;
-            if($request->filled('spec_otras')) $specs['otras'] = $request->spec_otras;
-            if($request->filled('so_version')) $specs['sistema_operativo'] = $request->so_version;
-            
-            if($request->filled('ram_capacidad')) $specs['ram'] = $request->ram_capacidad . ' ' . $request->ram_unidad;
-            if($request->filled('disco_capacidad')) $specs['almacenamiento'] = $request->disco_capacidad . ' ' . $request->disco_unidad;
+            if ($request->filled('cpu_modelo'))
+                $specs['procesador'] = $request->cpu_modelo;
+            if ($request->filled('imei'))
+                $specs['imei'] = $request->imei;
+            if ($request->filled('pantalla_tamano'))
+                $specs['pantalla'] = $request->pantalla_tamano;
+            if ($request->filled('spec_otras'))
+                $specs['otras'] = $request->spec_otras;
+            if ($request->filled('so_version'))
+                $specs['sistema_operativo'] = $request->so_version;
+
+            if ($request->filled('ram_capacidad'))
+                $specs['ram'] = $request->ram_capacidad . ' ' . $request->ram_unidad;
+            if ($request->filled('disco_capacidad'))
+                $specs['almacenamiento'] = $request->disco_capacidad . ' ' . $request->disco_unidad;
 
             $data['especificaciones'] = $specs;
-            
-            // Actualizar Foto (DB campo 'foto')
-            if ($request->hasFile('imagen')) {
-                if ($activo->foto) Storage::disk('public')->delete($activo->foto);
+
+            // Actualizar Imagen -> Columna 'foto'
+            if ($request->hasFile('imagen')) { // El input del formulario se llama 'imagen'
+                // Guardamos en la columna 'foto' de la BD
+                if (isset($activo) && $activo->foto) {
+                    Storage::disk('public')->delete($activo->foto);
+                }
                 $data['foto'] = $this->procesarImagen($request->file('imagen'));
             }
 
@@ -186,7 +219,7 @@ class ActivoController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Actualizado correctamente.']);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
@@ -194,13 +227,13 @@ class ActivoController extends Controller
     public function bajas(Request $request)
     {
         $query = Activo::with(['tipo', 'marca', 'motivoBaja', 'ubicacion'])
-                        ->where('estado_id', 6);
+            ->where('estado_id', 6);
 
         if ($request->filled('q')) {
             $busqueda = $request->input('q');
-            $query->where(function($q) use ($busqueda) {
+            $query->where(function ($q) use ($busqueda) {
                 $q->where('codigo_interno', 'like', "%$busqueda%")
-                  ->orWhere('numero_serie', 'like', "%$busqueda%");
+                    ->orWhere('numero_serie', 'like', "%$busqueda%");
             });
         }
 
@@ -217,12 +250,12 @@ class ActivoController extends Controller
             ]);
 
             $activo = Activo::findOrFail($id);
-            
-            if($activo->estado_id == 2) {
+
+            if ($activo->estado_id == 2) {
                 return response()->json(['success' => false, 'message' => 'El activo está ASIGNADO. Registre la devolución primero.'], 409);
             }
 
-            $activo->estado_id = 6; 
+            $activo->estado_id = 6;
             $activo->motivo_baja_id = $request->motivo_baja_id;
             $activo->observaciones .= "\n[BAJA " . Carbon::now()->format('d/m/Y') . "]: " . $request->comentarios;
             $activo->fecha_baja = Carbon::now();
@@ -230,36 +263,37 @@ class ActivoController extends Controller
 
             return response()->json(['success' => true, 'message' => 'Baja procesada correctamente.']);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
 
-    // Helper para Catálogos Rápidos
     public function storeCatalogo(Request $request)
     {
         try {
             $request->validate(['tipo_catalogo' => 'required', 'nombre' => 'required']);
-            
-            $modelo = match($request->tipo_catalogo) {
+
+            $modelo = match ($request->tipo_catalogo) {
                 'marca' => new CatalogoMarca(),
                 'tipo' => new CatalogoTipoActivo(),
                 'ubicacion' => new CatalogoUbicacion(),
                 'ram_tipo' => new CatalogoTipoRam(),
                 'disco_tipo' => new CatalogoTipoAlmacenamiento(),
-                'motivo_baja' => new CatalogoMotivoBaja(), 
+                'motivo_baja' => new CatalogoMotivoBaja(),
                 default => null
             };
 
-            if (!$modelo) return response()->json(['success' => false, 'message' => 'Catálogo inválido'], 400);
-            
+            if (!$modelo)
+                return response()->json(['success' => false, 'message' => 'Catálogo inválido'], 400);
+
             if (DB::table($modelo->getTable())->where('nombre', $request->nombre)->exists()) {
                 return response()->json(['success' => false, 'message' => 'Ya existe.'], 422);
             }
 
             $modelo->nombre = $request->nombre;
-            if($request->tipo_catalogo == 'motivo_baja') $modelo->comentarios_baja = ''; 
-            
+            if ($request->tipo_catalogo == 'motivo_baja')
+                $modelo->comentarios_baja = '';
+
             $modelo->save();
 
             return response()->json(['success' => true, 'data' => $modelo]);
@@ -268,8 +302,9 @@ class ActivoController extends Controller
             return response()->json(['success' => false, 'message' => 'Error interno.'], 500);
         }
     }
-    
-    public function quick_add(Request $request) {
+
+    public function quick_add(Request $request)
+    {
         return $this->storeCatalogo($request);
     }
 

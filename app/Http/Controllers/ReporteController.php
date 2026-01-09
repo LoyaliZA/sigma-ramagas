@@ -14,26 +14,17 @@ class ReporteController extends Controller
 {
     public function index()
     {
-        // 1. Cargamos catálogos para los filtros del buscador (si los mantienes)
+        // 1. Cargamos catálogos para los filtros
         $ubicaciones = CatalogoUbicacion::orderBy('nombre')->get();
         $estados = CatalogoEstadoActivo::orderBy('nombre')->get();
         $tipos = CatalogoTipoActivo::orderBy('nombre')->get();
         $empleados = Empleado::where('estatus', 'Activo')->orderBy('nombre')->get();
 
-        // 2. CALCULAMOS LOS CONTEOS PARA LAS TARJETAS
-        // Ajusta los IDs (1, 2, 3...) según tus seeders reales
+        // 2. Calculamos los conteos para el Dashboard
         $totalActivos = Activo::count();
-        
-        // Asumiendo: 2 = Asignado/En Uso
         $totalAsignados = Activo::where('estado_id', 2)->count(); 
-        
-        // Asumiendo: 1 = Disponible
         $totalDisponibles = Activo::where('estado_id', 1)->count();
-        
-        // Asumiendo: 3 y 4 = Diagnóstico y Mantenimiento
         $totalMantenimiento = Activo::whereIn('estado_id', [3, 4])->count();
-        
-        // Asumiendo: 5 y 6 = Pendiente de Baja y Baja Definitiva
         $totalBajas = Activo::whereIn('estado_id', [5, 6])->count();
 
         return view('reportes.index', compact(
@@ -43,10 +34,9 @@ class ReporteController extends Controller
         ));
     }
 
-    // ... Mantén las funciones generarInventario y generarBajas IGUAL que antes ...
     public function generarInventario(Request $request)
     {
-        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado']); // Sin 'modelo'
+        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado']);
 
         if ($request->ubicacion_id) $query->where('ubicacion_id', $request->ubicacion_id);
         if ($request->estado_id) $query->where('estado_id', $request->estado_id);
@@ -63,26 +53,26 @@ class ReporteController extends Controller
         $pdf = Pdf::loadView('reportes.pdf_inventario', compact('activos', 'filtros'))
                   ->setPaper('a4', 'landscape');
 
-        return $pdf->stream('Inventario_' . date('Ymd') . '.pdf');
+        return $pdf->stream('Inventario_' . date('Ymd_His') . '.pdf');
     }
 
-    public function generarBajas()
+    // RENOMBRADO: De generarBajas a bajasPdf para coincidir con tu ruta
+    public function bajasPdf()
     {
         $activos = Activo::with(['tipo', 'marca', 'motivoBaja'])
-                    ->whereIn('estado_id', [5, 6])
-                    ->orderBy('updated_date', 'desc')
+                    ->whereIn('estado_id', [5, 6]) // Estados de baja
+                    ->orderBy('fecha_baja', 'desc')
                     ->get();
 
         $pdf = Pdf::loadView('reportes.pdf_bajas', compact('activos'))
                   ->setPaper('a4', 'portrait');
 
-        return $pdf->stream('Bajas_' . date('Ymd') . '.pdf');
+        return $pdf->stream('Reporte_Bajas_' . date('Ymd_His') . '.pdf');
     }
 
     public function generarInventarioCSV(Request $request)
     {
-        // 1. Reutilizamos la misma lógica de filtrado
-        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado']);
+        $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado', 'condicion']);
 
         if ($request->ubicacion_id) $query->where('ubicacion_id', $request->ubicacion_id);
         if ($request->estado_id) $query->where('estado_id', $request->estado_id);
@@ -91,16 +81,13 @@ class ReporteController extends Controller
         $activos = $query->orderBy('ubicacion_id')->orderBy('tipo_id')->get();
         $filename = 'Inventario_' . date('Ymd_His') . '.csv';
 
-        // 2. Creamos un StreamedResponse para descargar sin guardar en disco
         return response()->streamDownload(function () use ($activos) {
             $handle = fopen('php://output', 'w');
-            
-            // Para que Excel reconozca caracteres latinos (tildes, ñ)
-            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
 
-            // Encabezados del CSV
             fputcsv($handle, [
                 'Numero de Serie', 
+                'Codigo Interno',
                 'Tipo', 
                 'Marca', 
                 'Modelo', 
@@ -110,10 +97,10 @@ class ReporteController extends Controller
                 'Costo'
             ]);
 
-            // Filas de datos
             foreach ($activos as $activo) {
                 fputcsv($handle, [
                     $activo->numero_serie,
+                    $activo->codigo_interno,
                     optional($activo->tipo)->nombre,
                     optional($activo->marca)->nombre,
                     $activo->modelo,

@@ -35,11 +35,23 @@ Route::middleware(['auth'])->group(function () {
     // Empleado NO entra aquí
     Route::middleware(['role:Admin|Super Admin'])->group(function () {
 
-        // --- ASIGNACIONES ---
-        Route::get('asignaciones/exportar-pdf/{id}', [AsignacionController::class, 'generarPdf'])->name('asignaciones.pdf'); // Carta Responsiva
-        Route::get('asignaciones/exportar-devolucion-pdf/{id}', [AsignacionController::class, 'generarPdfDevolucion'])->name('asignaciones.pdf_devolucion'); // Carta Devolución
-        Route::post('asignaciones/{id}/subir-archivo', [AsignacionController::class, 'subirArchivoFirmado'])->name('asignaciones.subir_archivo');
+        // ==========================================
+        //         MÓDULO DE ASIGNACIONES (CORREGIDO)
+        // ==========================================
+        
+        // 1. Acciones AJAX y Formularios (Lo que faltaba o daba error)
+        Route::post('asignaciones/subir-documento', [AsignacionController::class, 'subirDocumento'])->name('asignaciones.subir_documento');
+        Route::get('asignaciones/{id}/historial-documentos', [AsignacionController::class, 'obtenerHistorial'])->name('asignaciones.historial_documentos');
+        Route::post('asignaciones/{id}/devolver', [AsignacionController::class, 'devolver'])->name('asignaciones.devolver');
+
+        // 2. Generación de PDFs (Nombres alineados con el Controlador y la Vista)
+        Route::get('asignaciones/carta/{id}', [AsignacionController::class, 'imprimirCarta'])->name('asignaciones.carta');
+        Route::get('asignaciones/carta-lote/{loteId}', [AsignacionController::class, 'imprimirCartaPorLote'])->name('asignaciones.carta_lote');
+        Route::get('asignaciones/carta-devolucion/{id}', [AsignacionController::class, 'imprimirCartaDevolucion'])->name('asignaciones.carta_devolucion'); // Corregido nombre de ruta
+
+        // 3. Resource Principal (CRUD básico)
         Route::resource('asignaciones', AsignacionController::class);
+
 
         // --- ALMACÉN ---
         Route::resource('almacen', AlmacenController::class)->only(['index', 'store']);
@@ -82,8 +94,8 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:Admin|Super Admin'])->group(function () {
         Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
         Route::get('/reportes/inventario-pdf', [ReporteController::class, 'inventarioPdf'])->name('reportes.inventario_pdf');
-        Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])->name('reportes.bajas_pdf');
-        Route::get('/reportes/exportar-excel', [ReporteController::class, 'exportarExcel'])->name('reportes.exportar_excel');
+        Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])->name('reportes.bajas_pdf'); // Ajustado al nombre del método en controlador
+        Route::get('/reportes/exportar-excel', [ReporteController::class, 'generarInventarioCSV'])->name('reportes.exportar_excel'); // Ajustado: método se llamaba 'generarInventarioCSV' en el controlador
     });
 
 });

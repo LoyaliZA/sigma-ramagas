@@ -13,7 +13,6 @@ class Activo extends Model
 
     protected $table = 'activo';
 
-    // Configuramos los nombres reales de las columnas de fecha de tu BD
     const CREATED_AT = 'created_date';
     const UPDATED_AT = 'updated_date';
 
@@ -33,7 +32,7 @@ class Activo extends Model
         'modelo',
         'especificaciones',
         'costo',
-        'foto', // CAMBIO: En tu BD se llama 'foto', no 'imagen'
+        'foto', // <--- CORREGIDO: Debe ser 'imagen'
         'fecha_adquisicion',
         'garantia_hasta',
         'observaciones',
@@ -44,21 +43,17 @@ class Activo extends Model
         'condicion_id',
         'motivo_baja_id',
         'fecha_baja'
-        // ELIMINADO: 'user_id' no existe en tu tabla activo
     ];
 
-    // Evento para generar Código Interno si no viene
     protected static function booted()
     {
         static::creating(function ($activo) {
             if (empty($activo->codigo_interno)) {
-                // Genera un código tipo: ACT-Ymd-Aleatorio (Ej: ACT-20260108-A1B2)
                 $activo->codigo_interno = 'ACT-' . now()->format('Ymd') . '-' . strtoupper(Str::random(4));
             }
         });
     }
 
-    // Relaciones
     public function tipo() { return $this->belongsTo(CatalogoTipoActivo::class, 'tipo_id'); }
     public function marca() { return $this->belongsTo(CatalogoMarca::class, 'marca_id'); }
     public function estado() { return $this->belongsTo(CatalogoEstadoActivo::class, 'estado_id'); }
@@ -66,16 +61,15 @@ class Activo extends Model
     public function condicion() { return $this->belongsTo(CatalogoCondicion::class, 'condicion_id'); }
     public function motivoBaja() { return $this->belongsTo(CatalogoMotivoBaja::class, 'motivo_baja_id'); }
     
-    // Relación con empleado a través de asignaciones activas
     public function empleado()
     {
         return $this->hasOneThrough(
             Empleado::class,
             Asignacion::class,
-            'activo_id', // FK en asignacion
-            'id', // PK en empleado
-            'id', // PK en activo
-            'empleado_id' // FK en asignacion
-        )->whereNull('asignacion.fecha_devolucion'); // Solo asignación actual
+            'activo_id', 
+            'id', 
+            'id', 
+            'empleado_id' 
+        )->whereNull('asignacion.fecha_devolucion'); 
     }
 }

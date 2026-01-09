@@ -389,19 +389,58 @@
         const modalDocsElement = document.getElementById('modalDocumentos');
         const modalDocsInstance = modalDocsElement ? new bootstrap.Modal(modalDocsElement) : null;
 
+        // --- LÓGICA MEJORADA DE ACTIVOS (Ocultar Duplicados) ---
+        function actualizarOpcionesDisponibles() {
+            const todosLosSelects = document.querySelectorAll('.select-activo');
+            const valoresSeleccionados = Array.from(todosLosSelects)
+                                            .map(s => s.value)
+                                            .filter(v => v !== "");
+
+            todosLosSelects.forEach(selectActual => {
+                const valorActualDeEsteSelect = selectActual.value;
+                const opciones = selectActual.querySelectorAll('option');
+
+                opciones.forEach(opcion => {
+                    if (opcion.value === "") return; // Ignorar placeholder
+
+                    // Si está seleccionado en otro lado Y no es el valor actual de este input
+                    if (valoresSeleccionados.includes(opcion.value) && opcion.value !== valorActualDeEsteSelect) {
+                        opcion.style.display = 'none';
+                        opcion.disabled = true;
+                    } else {
+                        opcion.style.display = 'block';
+                        opcion.disabled = false;
+                    }
+                });
+            });
+        }
+
         // 1. NUEVA ASIGNACIÓN
         const btnNueva = document.getElementById('btnNuevaAsignacion');
         if (btnNueva && modalAsignarInstance) {
             btnNueva.addEventListener('click', () => {
                 document.getElementById('formAsignar').reset();
+                
                 // Resetear filas a 1
                 const container = document.getElementById('lista-activos-container');
-                const firstRow = container.querySelector('.activo-row').cloneNode(true);
-                container.innerHTML = ''; 
-                container.appendChild(firstRow);
-                firstRow.querySelector('select').value = "";
-                firstRow.querySelector('.btn-remove-row').style.display = 'none';
                 
+                // Estrategia para resetear dejando la primera fila limpia
+                const filas = container.querySelectorAll('.activo-row');
+                filas.forEach((fila, index) => {
+                    if (index === 0) {
+                        const select = fila.querySelector('select');
+                        select.value = "";
+                        // Importante: Asegurar que el listener esté activo en la fila base
+                        select.removeEventListener('change', actualizarOpcionesDisponibles); // Prevenir dobles
+                        select.addEventListener('change', actualizarOpcionesDisponibles);
+                        
+                        fila.querySelector('.btn-remove-row').style.display = 'none';
+                    } else {
+                        fila.remove();
+                    }
+                });
+                
+                actualizarOpcionesDisponibles(); 
                 modalAsignarInstance.show();
             });
         }
@@ -412,33 +451,39 @@
             btnAgregar.addEventListener('click', function() {
                 const container = document.getElementById('lista-activos-container');
                 const firstRow = container.querySelector('.activo-row');
-                const newRow = firstRow.cloneNode(true);
                 
-                newRow.querySelector('select').value = "";
-                newRow.querySelector('.btn-remove-row').style.display = 'block';
-                newRow.querySelector('.btn-remove-row').addEventListener('click', function() {
+                // Clonar
+                const newRow = firstRow.cloneNode(true);
+                const newSelect = newRow.querySelector('select');
+                
+                // Resetear y Configurar Nuevo Select
+                newSelect.value = "";
+                newSelect.addEventListener('change', actualizarOpcionesDisponibles);
+
+                // Configurar Botón Eliminar
+                const btnRemove = newRow.querySelector('.btn-remove-row');
+                btnRemove.style.display = 'block';
+                
+                // Crear nuevo listener de eliminación para esta fila específica
+                // (Evitamos usar cloneNode con eventos previos para tener control limpio)
+                const newBtnRemove = btnRemove.cloneNode(true);
+                btnRemove.parentNode.replaceChild(newBtnRemove, btnRemove);
+                
+                newBtnRemove.addEventListener('click', function() {
                     newRow.remove();
+                    actualizarOpcionesDisponibles(); // Recalcular al borrar
                 });
 
                 container.appendChild(newRow);
+                actualizarOpcionesDisponibles(); 
             });
         }
 
-        // Validar Duplicados
-        window.verificarDuplicados = function(selectChanged) {
-            const selects = document.querySelectorAll('.select-activo');
-            const valores = [];
-            selects.forEach(sel => {
-                if(sel.value) {
-                    if(valores.includes(sel.value)) {
-                        alert('¡Este activo ya está seleccionado!');
-                        sel.value = ""; 
-                    } else {
-                        valores.push(sel.value);
-                    }
-                }
-            });
-        };
+        // Listener inicial para la primera fila existente (si carga con HTML estático)
+        const primerSelect = document.querySelector('.select-activo');
+        if(primerSelect) {
+            primerSelect.addEventListener('change', actualizarOpcionesDisponibles);
+        }
 
         // Guardar Asignación (AJAX)
         const formAsignar = document.getElementById('formAsignar');
@@ -450,7 +495,6 @@
                 btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
                 const formData = new FormData(this);
-                // Construir objeto manualmente para manejar el array 'activos[]'
                 const data = {
                     empleado_id: formData.get('empleado_id'),
                     fecha_asignacion: formData.get('fecha_asignacion'),
@@ -488,7 +532,7 @@
             });
         }
 
-        // 2. BOTONES DEVOLVER (Delegación o Loop)
+        // 2. BOTONES DEVOLVER
         const btnsDevolver = document.querySelectorAll('.btn-devolver-trigger');
         btnsDevolver.forEach(btn => {
             btn.addEventListener('click', function() {
@@ -600,7 +644,7 @@
                     if(data.success) {
                         alert('Documento subido correctamente');
                         cargarHistorial(document.getElementById('doc_asignacion_id').value);
-                        location.reload(); // Para refrescar icono
+                        location.reload(); 
                     } else {
                         alert('Error: ' + data.message);
                     }

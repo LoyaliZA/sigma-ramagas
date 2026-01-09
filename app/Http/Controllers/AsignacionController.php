@@ -31,12 +31,12 @@ class AsignacionController extends Controller
             $query->where(function($q) use ($search) {
                 $q->whereHas('empleado', function($qEmp) use ($search) {
                     $qEmp->where('nombre', 'LIKE', "%{$search}%")
-                         ->orWhere('apellido_paterno', 'LIKE', "%{$search}%")
-                         ->orWhere('numero_empleado', 'LIKE', "%{$search}%");
+                        ->orWhere('apellido_paterno', 'LIKE', "%{$search}%")
+                        ->orWhere('numero_empleado', 'LIKE', "%{$search}%");
                 })
                 ->orWhereHas('activo', function($qAct) use ($search) {
                     $qAct->where('numero_serie', 'LIKE', "%{$search}%")
-                         ->orWhere('modelo', 'LIKE', "%{$search}%");
+                        ->orWhere('modelo', 'LIKE', "%{$search}%");
                 });
             });
         }

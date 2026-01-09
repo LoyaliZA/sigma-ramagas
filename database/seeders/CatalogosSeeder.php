@@ -14,15 +14,16 @@ class CatalogosSeeder extends Seeder
     {
         // 1. Limpiar tablas (reiniciar IDs)
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        
+        // Limpiamos todas las tablas de catálogo
         DB::table('catalogo_motivosbaja')->truncate();
         DB::table('catalogo_departamentos')->truncate();
         DB::table('catalogo_ubicaciones')->truncate();
         DB::table('catalogo_condiciones')->truncate();
         DB::table('catalogo_estadosactivo')->truncate();
-        DB::table('catalogo_estadosasignacion')->truncate();
+        DB::table('catalogo_estadosasignacion')->truncate(); // <--- Importante limpiar esta
         DB::table('catalogo_puestos')->truncate();
         
-        // Tablas nuevas o críticas para tu lógica
         DB::table('catalogo_tiposactivo')->truncate(); 
         DB::table('catalogo_marcas')->truncate();
         DB::table('catalogo_tipos_ram')->truncate();
@@ -31,20 +32,19 @@ class CatalogosSeeder extends Seeder
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
 
-        // --- 2. TIPOS DE ACTIVO (CRÍTICO: Los nombres activan los campos en el formulario) ---
-        // El JS busca: laptop, pc, desktop, cpu, servidor, monitor, pantalla, celular, tablet
+        // --- 2. TIPOS DE ACTIVO ---
         DB::table('catalogo_tiposactivo')->insert([
-            ['nombre' => 'Laptop'],           // Activa campos: CPU, RAM, Disco
-            ['nombre' => 'Desktop PC'],       // Activa campos: CPU, RAM, Disco
-            ['nombre' => 'Servidor'],         // Activa campos: CPU, RAM, Disco
-            ['nombre' => 'Monitor'],          // Activa campos: Pulgadas, Conectividad
-            ['nombre' => 'Celular'],          // Activa campos: IMEI, Pantalla
-            ['nombre' => 'Tablet'],           // Activa campos: IMEI, Pantalla
-            ['nombre' => 'Impresora'],        // Genérico
-            ['nombre' => 'Proyector'],        // Genérico
-            ['nombre' => 'Accesorio'],        // Genérico
-            ['nombre' => 'Licencia Software'],// Genérico
-            ['nombre' => 'Vehículo'],         // Genérico
+            ['nombre' => 'Laptop'],
+            ['nombre' => 'Desktop PC'],
+            ['nombre' => 'Servidor'],
+            ['nombre' => 'Monitor'],
+            ['nombre' => 'Celular'],
+            ['nombre' => 'Tablet'],
+            ['nombre' => 'Impresora'],
+            ['nombre' => 'Proyector'],
+            ['nombre' => 'Accesorio'],
+            ['nombre' => 'Licencia Software'],
+            ['nombre' => 'Vehículo'],
         ]);
 
         // --- 3. Marcas ---
@@ -72,18 +72,17 @@ class CatalogosSeeder extends Seeder
         
         // --- 5. Condiciones ---
         DB::table('catalogo_condiciones')->insert([
-            ['nombre' => 'Nuevo'],
-            ['nombre' => 'Excelente'],
-            ['nombre' => 'Bueno'],
-            ['nombre' => 'Regular'],
-            ['nombre' => 'Malo'],
-            ['nombre' => 'Para Piezas'],
+            ['nombre' => 'Nuevo'],              // Se mostrará
+            ['nombre' => 'Funcional'],          // Se mostrará (Antes Excelente/Bueno)
+            ['nombre' => 'Detalles estéticos'], // Se mostrará (Antes Regular)
+            ['nombre' => 'Dañado'],             // Se ocultará
+            ['nombre' => 'Para Piezas'],        // Se ocultará
         ]);
 
         // --- 6. Estados del Activo ---
         DB::table('catalogo_estadosactivo')->insert([
-            ['nombre' => 'Disponible'],       // ID 1
-            ['nombre' => 'En Uso'],           // ID 2
+            ['nombre' => 'Disponible'],      // ID 1
+            ['nombre' => 'En Uso'],          // ID 2
             ['nombre' => 'En Mantenimiento'], // ID 3
             ['nombre' => 'En Diagnóstico'],   // ID 4
             ['nombre' => 'Pendiente de Baja'],// ID 5
@@ -99,7 +98,7 @@ class CatalogosSeeder extends Seeder
             ['nombre' => 'Venta', 'comentarios_baja' => 'Vendido a terceros'],
         ]);
 
-        // --- 8. Tipos de RAM (Nuevo) ---
+        // --- 8. Tipos de RAM ---
         DB::table('catalogo_tipos_ram')->insert([
             ['nombre' => 'DDR3'],
             ['nombre' => 'DDR4'],
@@ -108,7 +107,7 @@ class CatalogosSeeder extends Seeder
             ['nombre' => 'SODIMM DDR4'],
         ]);
 
-        // --- 9. Tipos de Almacenamiento (Nuevo) ---
+        // --- 9. Tipos de Almacenamiento ---
         DB::table('catalogo_tipos_almacenamiento')->insert([
             ['nombre' => 'HDD (Mecánico)'],
             ['nombre' => 'SSD SATA'],
@@ -124,6 +123,16 @@ class CatalogosSeeder extends Seeder
             ['nombre' => 'Operaciones'],
             ['nombre' => 'Ventas'],
             ['nombre' => 'Dirección General'],
+        ]);
+
+        // --- 11. Estados de Asignación (NUEVO) ---
+        // Esto soluciona el problema del cuadro negro en el select
+        DB::table('catalogo_estadosasignacion')->insert([
+            ['nombre' => 'Excelente'],
+            ['nombre' => 'Bueno'],
+            ['nombre' => 'Regular'],
+            ['nombre' => 'Malo'],
+            ['nombre' => 'Para revisión'],
         ]);
     }
 }
