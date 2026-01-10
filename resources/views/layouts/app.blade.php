@@ -23,7 +23,7 @@
                 <i class="bi bi-file-earmark-text-fill"></i>
             </div>
             <div class="app-title">
-                <strong>SysActivos</strong>
+                <strong>SIGMA</strong>
                 <span>Grupo Ramagas</span>
             </div>
         </div>
