@@ -12,9 +12,9 @@ class SeguimientoController extends Controller
     {
         $limit = $request->input('limit', 10);
         $busqueda = $request->get('q');
-        $filtro = $request->get('filtro'); // <--- Nuevo parámetro
+        $filtro = $request->get('filtro'); 
         
-        // 1. KPIs (Se mantienen igual, siempre muestran el panorama completo)
+        // 1. KPIs
         $kpis = [
             'total_rastreados' => Activo::where('estado_id', '!=', 6)->count(),
             'en_uso' => Activo::where('estado_id', 2)->count(),
@@ -24,7 +24,7 @@ class SeguimientoController extends Controller
 
         // 2. Consulta Principal
         $query = Activo::with(['tipo', 'marca', 'ubicacion', 'estado'])
-                        ->where('estado_id', '!=', 6); // Siempre excluir bajas definitivas
+                        ->where('estado_id', '!=', 6); 
 
         // --- LÓGICA DE FILTROS RÁPIDOS ---
         if ($filtro) {
@@ -36,9 +36,8 @@ class SeguimientoController extends Controller
                     $query->where('estado_id', 1);
                     break;
                 case 'mantenimiento':
-                    $query->whereIn('estado_id', [3, 4]); // Mantenimiento y Diagnóstico
+                    $query->whereIn('estado_id', [3, 4]); 
                     break;
-                // 'total' no hace nada, deja pasar todos
             }
         }
 
@@ -56,20 +55,18 @@ class SeguimientoController extends Controller
 
         $activos = $query->orderBy('updated_date', 'desc')
                         ->paginate($limit)
-                         ->appends($request->query()); // Mantiene filtro y búsqueda en paginación
+                        ->appends($request->query()); 
 
-        // Redirección inteligente solo si busca algo específico, no si filtra
+        // Redirección inteligente
         if ($busqueda && !$filtro && $activos->total() == 1) {
             return redirect()->route('seguimiento.show', $activos->items()[0]->id);
         }
 
-        // Pasamos $filtro a la vista para saber cuál está activo
         return view('seguimiento.index', compact('activos', 'busqueda', 'limit', 'kpis', 'filtro'));
     }
 
     public function show($id)
     {
-        // (Sin cambios aquí)
         $activo = Activo::with(['tipo', 'marca', 'ubicacion', 'estado', 'condicion', 'empleado.puesto', 'empleado.departamento'])
                     ->findOrFail($id);
 
@@ -77,6 +74,20 @@ class SeguimientoController extends Controller
                         ->where('activo_id', $id)
                         ->orderBy('fecha_asignacion', 'desc')
                         ->get();
+
+        // [LOG] Registrar Consulta Detallada
+        // Registramos que el usuario vio el historial completo de este activo específico
+        $this->logAction(
+            'Consulta de Rastreo', 
+            'activos', 
+            $id, 
+            null, 
+            [
+                'accion' => 'Visualización de Historial Completo',
+                'activo' => $activo->codigo_interno,
+                'serie' => $activo->numero_serie
+            ]
+        );
 
         return view('seguimiento.show', compact('activo', 'historial'));
     }

@@ -65,23 +65,18 @@ class EmpleadoController extends Controller
                 }
                 $data['numero_empleado'] = 'RMA-' . str_pad($consecutivo, 3, '0', STR_PAD_LEFT);
 
-                // --- COMPRESIÓN DE IMAGEN (VERSIÓN 3) ---
+                // --- COMPRESIÓN DE IMAGEN ---
                 if ($request->hasFile('foto')) {
                     $file = $request->file('foto');
                     $filename = 'empleados/' . uniqid() . '.jpg';
                     
-                    // Leer imagen
                     $image = Image::read($file);
-                    
-                    // Redimensionar a 800px de ancho (mantiene aspecto)
                     $image->scale(width: 800);
-                    
-                    // Guardar en Storage como JPG calidad 75
                     Storage::disk('public')->put($filename, $image->toJpeg(75));
                     
                     $data['foto_url'] = $filename;
                 }
-                // ----------------------------------------
+                // ----------------------------
 
                 $empleado = Empleado::create($data);
 
@@ -97,6 +92,16 @@ class EmpleadoController extends Controller
                         }
                     }
                 }
+                
+                // [LOG] Registrar Creación
+                // Cargamos contactos para que salgan en el log
+                $this->logAction(
+                    'Creación de Empleado', 
+                    'empleado', 
+                    $empleado->id, 
+                    null, 
+                    $empleado->load('contactos')->toArray()
+                );
                 
                 return response()->json([
                     'success' => true,
@@ -146,9 +151,12 @@ class EmpleadoController extends Controller
                     'contactos' => 'nullable|array',
                 ]);
 
+                // [LOG] Captura previa (Incluyendo contactos para ver si cambiaron)
+                $valoresAnteriores = $empleado->load('contactos')->toArray();
+
                 $data = $request->except(['numero_empleado', 'foto', 'contactos']);
 
-                // --- COMPRESIÓN DE IMAGEN (VERSIÓN 3) ---
+                // --- COMPRESIÓN DE IMAGEN ---
                 if ($request->hasFile('foto')) {
                     if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
                         Storage::disk('public')->delete($empleado->foto_url);
@@ -163,7 +171,7 @@ class EmpleadoController extends Controller
                     
                     $data['foto_url'] = $filename;
                 }
-                // ----------------------------------------
+                // ----------------------------
 
                 if ($request->estatus === 'Baja') {
                     $data['fecha_baja'] = $request->fecha_baja;
@@ -190,6 +198,16 @@ class EmpleadoController extends Controller
                 } elseif ($request->has('contactos') && empty($request->contactos)) {
                     $empleado->contactos()->delete();
                 }
+
+                // [LOG] Registrar Edición
+                // Usamos fresh()->load() para obtener el estado final exacto
+                $this->logAction(
+                    'Edición de Empleado', 
+                    'empleado', 
+                    $empleado->id, 
+                    $valoresAnteriores, 
+                    $empleado->fresh()->load('contactos')->toArray()
+                );
 
                 return response()->json([
                     'success' => true,
@@ -227,16 +245,29 @@ class EmpleadoController extends Controller
 
     public function destroy(Empleado $empleado)
     {
-        // Doble seguridad: tampoco permitir borrar si tiene activos
+        // Doble seguridad
         if($empleado->asignacionesActivas()->count() > 0){
              return response()->json(['success' => false, 'message' => 'No se puede eliminar: Tiene activos asignados.'], 422);
         }
 
         try {
+            // [LOG] Captura previa
+            $valoresAnteriores = $empleado->load('contactos')->toArray();
+
             if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
                 Storage::disk('public')->delete($empleado->foto_url);
             }
             $empleado->delete();
+
+            // [LOG] Registrar Eliminación
+            $this->logAction(
+                'Eliminación de Empleado', 
+                'empleado', 
+                $empleado->id, 
+                $valoresAnteriores, 
+                null
+            );
+
             return response()->json(['success' => true, 'message' => 'Empleado eliminado exitosamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);
@@ -247,8 +278,7 @@ class EmpleadoController extends Controller
     {
         $request->validate([
             'tipo_documento' => 'required|string',
-            'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', // Máx 5MB
-            // Validamos nombre_personalizado solo si tipo_documento es Personalizar
+            'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', 
             'nombre_personalizado' => 'required_if:tipo_documento,Personalizar|nullable|string|max:150',
         ]);
 
@@ -257,26 +287,33 @@ class EmpleadoController extends Controller
         if ($request->hasFile('archivo')) {
             $archivo = $request->file('archivo');
             
-            // LÓGICA DE NOMBRE:
-            // Si eligió "Personalizar", usamos el input de texto.
-            // Si eligió otra cosa, usamos el valor del select.
             $nombreDocumento = $request->tipo_documento === 'Personalizar' 
                 ? $request->nombre_personalizado 
                 : $request->tipo_documento;
 
-            // Generar nombre de archivo único
             $nombreArchivo = 'DOC_' . $empleado->numero_empleado . '_' . time() . '.' . $archivo->getClientOriginalExtension();
-            
-            // Guardar en storage/app/public/empleados/documentos
             $ruta = $archivo->storeAs('empleados/documentos', $nombreArchivo, 'public');
 
-            // Guardar registro en BD
-            $empleado->documentos()->create([
-                'nombre' => $nombreDocumento, // Guardamos el nombre final
+            $doc = $empleado->documentos()->create([
+                'nombre' => $nombreDocumento,
                 'ruta_archivo' => $ruta,
-                'tipo_documento' => 'Expediente', // Categoría interna fija
+                'tipo_documento' => 'Expediente', 
                 'subido_por' => auth()->id(),
             ]);
+
+            // [LOG] Registrar subida de documento
+            // Asociamos el log al Empleado para verlo en su historial
+            $this->logAction(
+                'Documento Subido', 
+                'empleado', 
+                $empleado->id, 
+                null, 
+                [
+                    'documento_id' => $doc->id,
+                    'nombre_documento' => $nombreDocumento,
+                    'archivo' => $nombreArchivo
+                ]
+            );
 
             return response()->json(['success' => true, 'message' => 'Documento subido correctamente']);
         }
@@ -288,11 +325,23 @@ class EmpleadoController extends Controller
     {
         try {
             $doc = EmpleadoDocumento::findOrFail($id);
-            
+            $empleadoId = $doc->empleado_id; // Guardamos el ID antes de borrar
+            $datosDocumento = $doc->toArray(); // Guardamos datos para el log
+
             if (Storage::disk('public')->exists($doc->ruta_archivo)) {
                 Storage::disk('public')->delete($doc->ruta_archivo);
             }
             $doc->delete();
+
+            // [LOG] Registrar eliminación de documento
+            $this->logAction(
+                'Documento Eliminado', 
+                'empleado', 
+                $empleadoId, 
+                $datosDocumento, 
+                null
+            );
+
             return response()->json(['success' => true, 'message' => 'Documento eliminado correctamente.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);

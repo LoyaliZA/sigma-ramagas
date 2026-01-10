@@ -23,7 +23,7 @@ class ActivoController extends Controller
 {
     public function index(Request $request)
     {
-        // ... (KPIs y Query principal están bien) ...
+        // ... (KPIs y Query principal se mantienen igual) ...
         $kpiTotal = Activo::where('estado_id', '!=', 6)->count();
         $kpiEnUso = Activo::where('estado_id', 2)->count();
         $kpiDisponibles = Activo::where('estado_id', 1)->count();
@@ -50,7 +50,6 @@ class ActivoController extends Controller
         $limit = $request->input('limit', 10);
         $activos = $query->orderBy('created_date', 'desc')->paginate($limit)->appends($request->query());
 
-        // --- AQUÍ ESTÁ EL FILTRO CORRECTO ---
         $condiciones = CatalogoCondicion::whereIn('nombre', [
             'Nuevo',
             'Funcional',
@@ -61,10 +60,6 @@ class ActivoController extends Controller
         $marcas = CatalogoMarca::orderBy('nombre')->get();
         $estados = CatalogoEstadoActivo::where('id', '!=', 6)->orderBy('nombre')->get();
         $ubicaciones = CatalogoUbicacion::orderBy('nombre')->get();
-        
-        // BORRAR ESTA LÍNEA (Aquí estaba el error, la estabas sobrescribiendo):
-        // $condiciones = CatalogoCondicion::orderBy('nombre')->get(); 
-
         $tiposRam = CatalogoTipoRam::orderBy('nombre')->get();
         $tiposDisco = CatalogoTipoAlmacenamiento::orderBy('nombre')->get();
         $motivosBaja = CatalogoMotivoBaja::orderBy('nombre')->get();
@@ -76,7 +71,7 @@ class ActivoController extends Controller
             'marcas',
             'estados',
             'ubicaciones',
-            'condiciones', // Ahora sí pasará la variable filtrada
+            'condiciones',
             'tiposRam',
             'tiposDisco',
             'motivosBaja',
@@ -134,16 +129,22 @@ class ActivoController extends Controller
 
             $data['especificaciones'] = $specs;
 
-            // Procesamiento de Imagen -> Guardar en columna 'imagen'
-            if ($request->hasFile('imagen')) { // El input del formulario se llama 'imagen'
-                // Guardamos en la columna 'foto' de la BD
-                if (isset($activo) && $activo->foto) {
-                    Storage::disk('public')->delete($activo->foto);
-                }
+            // Procesamiento de Imagen
+            if ($request->hasFile('imagen')) { 
                 $data['foto'] = $this->procesarImagen($request->file('imagen'));
             }
 
+            // CREAR ACTIVO
             $activo = Activo::create($data);
+
+            // [LOG] Registrar Creación
+            $this->logAction(
+                'Creación de Activo', 
+                'activo', 
+                $activo->id, 
+                null, // No hay anterior
+                $activo->toArray() // Nuevo
+            );
 
             return response()->json([
                 'success' => true,
@@ -158,12 +159,8 @@ class ActivoController extends Controller
 
     public function show(Request $request, $id)
     {
-        // Cargamos todas las relaciones necesarias, incluyendo motivo de baja
         $activo = Activo::with(['tipo', 'marca', 'estado', 'ubicacion', 'motivoBaja'])->findOrFail($id);
 
-        // MODIFICACIÓN CLAVE:
-        // Si el cliente pide JSON explícitamente (Accept: application/json), devolvemos JSON.
-        // Si es solo una petición AJAX estándar (sin header específico), devolvemos la vista parcial.
         if ($request->wantsJson()) {
             return response()->json($activo);
         }
@@ -194,6 +191,9 @@ class ActivoController extends Controller
                 return response()->json(['success' => false, 'message' => 'Use el botón "Dar de Baja" para retirar el equipo.'], 422);
             }
 
+            // [LOG] Capturar valor anterior
+            $valoresAnteriores = $activo->toArray();
+
             $data = $request->except(['codigo_interno', 'imagen', 'especificaciones']);
 
             // Reconstruir specs
@@ -216,9 +216,8 @@ class ActivoController extends Controller
 
             $data['especificaciones'] = $specs;
 
-            // Actualizar Imagen -> Columna 'foto'
-            if ($request->hasFile('imagen')) { // El input del formulario se llama 'imagen'
-                // Guardamos en la columna 'foto' de la BD
+            // Actualizar Imagen
+            if ($request->hasFile('imagen')) { 
                 if (isset($activo) && $activo->foto) {
                     Storage::disk('public')->delete($activo->foto);
                 }
@@ -226,6 +225,16 @@ class ActivoController extends Controller
             }
 
             $activo->update($data);
+
+            // [LOG] Registrar Edición
+            // Usamos fresh() para asegurar que obtenemos los datos tal cual quedaron en BD
+            $this->logAction(
+                'Edición de Activo', 
+                'activo', 
+                $activo->id, 
+                $valoresAnteriores, 
+                $activo->fresh()->toArray()
+            );
 
             return response()->json(['success' => true, 'message' => 'Actualizado correctamente.']);
 
@@ -265,11 +274,23 @@ class ActivoController extends Controller
                 return response()->json(['success' => false, 'message' => 'El activo está ASIGNADO. Registre la devolución primero.'], 409);
             }
 
+            // [LOG] Capturar valor anterior
+            $valoresAnteriores = $activo->toArray();
+
             $activo->estado_id = 6;
             $activo->motivo_baja_id = $request->motivo_baja_id;
             $activo->observaciones .= "\n[BAJA " . Carbon::now()->format('d/m/Y') . "]: " . $request->comentarios;
             $activo->fecha_baja = Carbon::now();
             $activo->save();
+
+            // [LOG] Registrar Baja
+            $this->logAction(
+                'Baja de Activo', 
+                'activo', 
+                $activo->id, 
+                $valoresAnteriores, 
+                $activo->toArray()
+            );
 
             return response()->json(['success' => true, 'message' => 'Baja procesada correctamente.']);
 
@@ -305,6 +326,15 @@ class ActivoController extends Controller
                 $modelo->comentarios_baja = '';
 
             $modelo->save();
+
+            // [LOG] Registrar creación en catálogo rápido (Modal de Activos)
+            $this->logAction(
+                'Creación Rápida Catálogo', 
+                $modelo->getTable(), 
+                $modelo->id, 
+                null, 
+                $modelo->toArray()
+            );
 
             return response()->json(['success' => true, 'data' => $modelo]);
 

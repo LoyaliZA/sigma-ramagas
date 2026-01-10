@@ -30,6 +30,9 @@ class ReporteController extends Controller
         $totalMantenimiento = Activo::whereIn('estado_id', [3, 4])->count();
         $totalBajas = Activo::whereIn('estado_id', [5, 6])->count();
 
+        // Opcional: Registrar que alguien entró al dashboard de reportes
+        // $this->logAction('Acceso', 'Reportes', 0, null, ['seccion' => 'Dashboard Reportes']);
+
         return view('reportes.index', compact(
             'ubicaciones',
             'estados',
@@ -62,6 +65,20 @@ class ReporteController extends Controller
             'tipo' => $request->tipo_id ? CatalogoTipoActivo::find($request->tipo_id)->nombre : 'Todos',
         ];
 
+        // [LOG] Registrar Generación de PDF
+        // Guardamos los filtros usados en 'valores_nuevos' para saber qué información sacaron
+        $this->logAction(
+            'Reporte PDF Generado', 
+            'activos', 
+            'REPORT', // ID Genérico
+            null, 
+            [
+                'tipo_reporte' => 'Inventario General',
+                'filtros_usados' => $filtros,
+                'registros_encontrados' => $activos->count()
+            ]
+        );
+
         $pdf = Pdf::loadView('reportes.pdf_inventario', compact('activos', 'filtros'))
             ->setPaper('a4', 'landscape');
 
@@ -74,6 +91,18 @@ class ReporteController extends Controller
             ->whereIn('estado_id', [5, 6])
             ->orderBy('fecha_baja', 'desc')
             ->get();
+
+        // [LOG] Registrar Generación de PDF Bajas
+        $this->logAction(
+            'Reporte PDF Generado', 
+            'activos', 
+            'REPORT', 
+            null, 
+            [
+                'tipo_reporte' => 'Historial de Bajas',
+                'registros_encontrados' => $activos->count()
+            ]
+        );
 
         $pdf = Pdf::loadView('reportes.pdf_bajas', compact('activos'))
             ->setPaper('a4', 'portrait');
@@ -93,6 +122,19 @@ class ReporteController extends Controller
             $query->where('tipo_id', $request->tipo_id);
 
         $activos = $query->orderBy('ubicacion_id')->orderBy('tipo_id')->get();
+        
+        // [LOG] Registrar Descarga de CSV (Importante por seguridad de datos masivos)
+        $this->logAction(
+            'Exportación CSV', 
+            'activos', 
+            'EXPORT', 
+            null, 
+            [
+                'filtros' => $request->all(),
+                'total_filas' => $activos->count()
+            ]
+        );
+
         $filename = 'Inventario_' . date('Ymd_His') . '.csv';
 
         return response()->streamDownload(function () use ($activos) {

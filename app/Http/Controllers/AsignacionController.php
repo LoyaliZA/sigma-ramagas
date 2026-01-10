@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Carbon\Carbon; // IMPORTANTE: Agregamos Carbon
+use Carbon\Carbon;
 
 class AsignacionController extends Controller
 {
@@ -69,9 +69,6 @@ class AsignacionController extends Controller
             DB::beginTransaction();
 
             $loteId = Str::uuid();
-
-            // --- CORRECCIÓN DE HORA ---
-            // Tomamos la fecha del input y le ponemos la hora actual
             $fechaConHora = Carbon::parse($request->fecha_asignacion)->setTimeFrom(now());
 
             foreach ($request->activos as $activoId) {
@@ -81,18 +78,29 @@ class AsignacionController extends Controller
                     throw new \Exception("El activo {$activo->numero_serie} ya no está disponible.");
                 }
 
-                Asignacion::create([
+                // Creamos la asignación
+                $asignacion = Asignacion::create([
                     'id' => Str::uuid(),
                     'lote_id' => $loteId,
                     'empleado_id' => $request->empleado_id,
                     'activo_id' => $activoId,
-                    'fecha_asignacion' => $fechaConHora, // Usamos la variable con hora
+                    'fecha_asignacion' => $fechaConHora,
                     'estado_entrega_id' => $request->estado_entrega_id,
                     'observaciones_entrega' => $request->observaciones
                 ]);
 
                 $activo->estado_id = 2; // En Uso
                 $activo->save();
+
+                // [LOG] Registrar creación de asignación
+                // Como es nuevo, "valores_anteriores" es null
+                $this->logAction(
+                    'Asignación Creada', 
+                    'asignacion', 
+                    $asignacion->id, 
+                    null, 
+                    $asignacion->toArray()
+                );
             }
 
             DB::commit();
@@ -110,12 +118,10 @@ class AsignacionController extends Controller
         }
     }
 
-    // ... (Métodos subirDocumento y obtenerHistorial se quedan igual) ...
     public function subirDocumento(Request $request)
     {
         $request->validate([
             'asignacion_id' => 'required|exists:asignacion,id',
-            // CAMBIO AQUÍ: max:1024 equivale a 1 Megabyte
             'documento' => 'required|file|mimes:pdf,jpg,png|max:1024' 
         ]);
 
@@ -123,6 +129,10 @@ class AsignacionController extends Controller
             DB::beginTransaction();
 
             $asignacion = Asignacion::findOrFail($request->asignacion_id);
+            
+            // [LOG] Captura previa
+            $valoresAnteriores = $asignacion->toArray();
+
             $file = $request->file('documento');
             
             $referencia = $asignacion->lote_id ?? $asignacion->id;
@@ -131,6 +141,7 @@ class AsignacionController extends Controller
 
             // Actualizar URL
             if ($asignacion->lote_id) {
+                // Si es por lote, actualiza todas las del lote
                 Asignacion::where('lote_id', $asignacion->lote_id)->update(['carta_responsiva_url' => $path]);
             } else {
                 $asignacion->carta_responsiva_url = $path;
@@ -147,6 +158,16 @@ class AsignacionController extends Controller
                 'subido_por_id' => auth()->id() ?? null,
                 'fecha_subida' => now()
             ]);
+
+            // [LOG] Registrar subida
+            // Usamos fresh() para traer el dato actualizado de la BD (especialmente util si se actualizó por lote)
+            $this->logAction(
+                'Subida de Responsiva', 
+                'asignacion', 
+                $asignacion->id, 
+                $valoresAnteriores, 
+                $asignacion->fresh()->toArray()
+            );
 
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Documento subido correctamente.']);
@@ -175,9 +196,7 @@ class AsignacionController extends Controller
     public function devolver(Request $request, $id)
     {
         try {
-            // 1. Quitamos 'fecha_devolucion' de la validación porque ya no la recibiremos del usuario
             $request->validate([
-                // 'fecha_devolucion' => 'required|date',  <-- ELIMINADO
                 'estado_devolucion_id' => 'required|exists:catalogo_estadosasignacion,id',
                 'observaciones' => 'nullable|string'
             ]);
@@ -185,12 +204,14 @@ class AsignacionController extends Controller
             DB::beginTransaction();
 
             $asignacion = Asignacion::findOrFail($id);
+            
+            // [LOG] Captura previa
+            $valoresAnteriores = $asignacion->toArray();
+
             if($asignacion->fecha_devolucion != null) {
                 return response()->json(['success' => false, 'message' => 'Ya fue devuelto.'], 400);
             }
 
-            // 2. FORZAMOS LA FECHA ACTUAL DEL SERVIDOR (now())
-            // Ya no usamos $request->fecha_devolucion
             $fechaDevolucionExacta = now(); 
 
             $asignacion->update([
@@ -204,6 +225,15 @@ class AsignacionController extends Controller
             $activo->estado_id = ($request->estado_devolucion_id == 1) ? 1 : 4; 
             $activo->save();
 
+            // [LOG] Registrar devolución
+            $this->logAction(
+                'Devolución de Activo', 
+                'asignacion', 
+                $asignacion->id, 
+                $valoresAnteriores, 
+                $asignacion->fresh()->toArray()
+            );
+
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Devolución procesada correctamente.']);
 
@@ -213,7 +243,8 @@ class AsignacionController extends Controller
         }
     }
 
-    // ... (Métodos de imprimir se quedan igual) ...
+    // ... Métodos de impresión sin cambios (son de lectura) ...
+
     public function imprimirCartaPorLote($loteId)
     {
         $asignaciones = Asignacion::with(['activo.tipo', 'activo.marca', 'empleado.puesto', 'empleado.departamento', 'estadoEntrega'])
