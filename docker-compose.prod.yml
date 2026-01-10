@@ -1,0 +1,69 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # CAMBIO AQUI: Ahora coincide con el nombre de tu repo
+    image: loyaliza/sigma-ramagas
+    container_name: sigma_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+    environment:
+      - TZ=America/Mexico_City
+    networks:
+      - sigma-network
+    env_file: .env
+
+  nginx:
+    image: nginx:alpine
+    container_name: sigma_nginx
+    restart: unless-stopped
+    expose:
+      - "80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - sigma-network
+    depends_on:
+      - app
+
+  db:
+    image: mysql:8.0
+    container_name: sigma_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      TZ: 'America/Mexico_City'
+    volumes:
+      - sigma_db_data:/var/lib/mysql
+    networks:
+      - sigma-network
+    command: --default-authentication-plugin=mysql_native_password
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: sigma_tunnel
+    restart: unless-stopped
+    # El comando exacto que pediste
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - sigma-network
+    depends_on:
+      - nginx
+
+networks:
+  sigma-network:
+    driver: bridge
+
+volumes:
+  sigma_db_data:
+    driver: local
