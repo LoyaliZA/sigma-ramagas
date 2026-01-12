@@ -15,7 +15,7 @@
                             <input type="text" class="form-control bg-light" id="editNumeroEmpleado" readonly>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Cód. Empresa</label>
+                            <label class="form-label">Numero De Empleado</label>
                             <input type="text" class="form-control" id="editCodigoEmpresa" name="codigo_empresa">
                         </div>
                         

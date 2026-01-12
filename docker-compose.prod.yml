@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # CAMBIO AQUI: Ahora coincide con el nombre de tu repo
     image: loyaliza/sigma-ramagas
     container_name: sigma_app
     restart: unless-stopped
@@ -41,6 +40,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_USER: ${DB_USERNAME}
       TZ: 'America/Mexico_City'
+    ports:
+      - "3306:3306"
     volumes:
       - sigma_db_data:/var/lib/mysql
     networks:
@@ -51,7 +52,6 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: sigma_tunnel
     restart: unless-stopped
-    # El comando exacto que pediste
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}

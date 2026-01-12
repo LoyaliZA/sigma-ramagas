@@ -29,7 +29,7 @@
                                     <div class="form-text small text-muted">Se generará al guardar.</div>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Cód. Empresa <i class="fas fa-info-circle text-muted" title="Código interno usado por la empresa"></i></label>
+                                    <label class="form-label">Numero de Empleado<i class="fas fa-info-circle text-muted" title="Código interno usado por la empresa"></i></label>
                                     <input type="text" class="form-control" name="codigo_empresa" placeholder="Ej: REF-001">
                                 </div>
                                 <div class="col-md-4">

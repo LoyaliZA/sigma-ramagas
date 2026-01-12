@@ -38,7 +38,7 @@
 
                         <div class="row g-3 bg-light p-3 rounded mb-4">
                             <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">No. Sistema</small><span id="verNumeroEmpleado"></span></div>
-                            <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">Cód. Empresa</small><span id="verCodigoEmpresa" class="fw-bold text-dark"></span></div>
+                            <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">Numero de Empleado</small><span id="verCodigoEmpresa" class="fw-bold text-dark"></span></div>
                             <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">Departamento</small><span id="verDepartamento"></span></div>
                             <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">Ubicación</small><span id="verUbicacion"></span></div>
                             <div class="col-md-4"><small class="text-muted d-block fw-bold text-uppercase">Fecha Ingreso</small><span id="verFechaIngreso"></span></div>
