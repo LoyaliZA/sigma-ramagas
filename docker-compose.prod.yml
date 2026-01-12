@@ -20,8 +20,8 @@ services:
     image: nginx:alpine
     container_name: sigma_nginx
     restart: unless-stopped
-    expose:
-      - "80"
+    ports:
+      - "80:80"
     volumes:
       - .:/var/www
       - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
