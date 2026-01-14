@@ -153,7 +153,7 @@
                         <label class="form-label fw-bold small text-muted text-uppercase">Correo Electrónico</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
-                            <input type="email" name="email" id="email" class="form-control border-start-0 ps-0" placeholder="usuario@bellaroma.mx" required>
+                            <input type="email" name="email" id="email" class="form-control border-start-0 ps-0" placeholder="usuario@ramagas.mx" required>
                         </div>
                     </div>
 

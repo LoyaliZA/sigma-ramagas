@@ -16,7 +16,7 @@
                     <i class="bi bi-envelope text-gray-400"></i>
                 </div>
                 <input id="email" class="pl-10 block mt-1 w-full border-gray-300 rounded-lg shadow-sm focus:border-sigma focus:ring focus:ring-sigma focus:ring-opacity-20 transition duration-200 py-2.5" 
-                    type="email" name="email" :value="old('email')" required autofocus placeholder="correo@bellaroma.com" />
+                    type="email" name="email" :value="old('email')" required autofocus placeholder="correo@ramagas.com" />
             </div>
             <x-input-error :messages="$errors->get('email')" class="mt-2 text-red-500 text-xs" />
         </div>

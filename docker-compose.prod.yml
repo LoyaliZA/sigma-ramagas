@@ -40,6 +40,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_USER: ${DB_USERNAME}
       TZ: 'America/Mexico_City'
+    # COMENTAMOS LOS PUERTOS POR SEGURIDAD
+    # No exponemos 3306 al exterior. La app accede internamente por la red 'sigma-network'
     ports:
       - "3306:3306"
     volumes:
@@ -47,6 +49,18 @@ services:
     networks:
       - sigma-network
     command: --default-authentication-plugin=mysql_native_password
+
+  # AÑADIMOS ADMINER: Gestor de BD seguro via Web
+  adminer:
+    image: adminer
+    container_name: sigma_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - sigma-network
+    depends_on:
+      - db
 
   tunnel:
     image: cloudflare/cloudflared:latest
