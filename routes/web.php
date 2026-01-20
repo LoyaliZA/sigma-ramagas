@@ -24,48 +24,52 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // --- GRUPO 1: SOLO LECTURA ---
-    Route::get('seguimiento', [SeguimientoController::class, 'index'])->name('seguimiento.index');
-    Route::get('seguimiento/{id}', [SeguimientoController::class, 'show'])->name('seguimiento.show');
+    // --- GRUPO 1: ACCESO GENERAL (Empleados y Admins) ---
+    // El empleado necesita entrar aquí para ver su info y descargar sus activos.
+    // Solo permitimos VER (Index, Show) y DESCARGAR HISTORIAL.
+    Route::get('empleados', [EmpleadoController::class, 'index'])->name('empleados.index');
+    Route::get('empleados/{empleado}', [EmpleadoController::class, 'show'])->name('empleados.show');
+    Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
 
 
     // --- GRUPO 2: GESTIÓN INTERMEDIA (Admin | Super Admin) ---
+    // Aquí bloqueamos las acciones de escritura, edición y bajas.
     Route::middleware(['role:Admin|Super Admin'])->group(function () {
         
-        // --- 1. REPORTES (Especificas) ---
+        // 1. SEGUIMIENTO (Restringido: Empleados ya no entran aquí)
+        Route::get('seguimiento', [SeguimientoController::class, 'index'])->name('seguimiento.index');
+        Route::get('seguimiento/{id}', [SeguimientoController::class, 'show'])->name('seguimiento.show');
+
+        // 2. EMPLEADOS (Solo acciones de ESCRITURA/EDICIÓN)
+        // Aunque el empleado ve la lista, si intenta crear o editar, caerá aquí y será bloqueado.
+        Route::post('empleados', [EmpleadoController::class, 'store'])->name('empleados.store');
+        Route::put('empleados/{empleado}', [EmpleadoController::class, 'update'])->name('empleados.update'); // Aquí se procesan las bajas/ediciones
+        Route::post('/empleados/{id}/documentos', [EmpleadoController::class, 'subirDocumento'])->name('empleados.documentos.store');
+        Route::delete('/empleados/documentos/{id}', [EmpleadoController::class, 'eliminarDocumento'])->name('empleados.documentos.destroy');
+        
+        // 3. REPORTES
         Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
         Route::get('/reportes/inventario-pdf', [ReporteController::class, 'generarInventario'])->name('reportes.inventario');
         Route::get('/reportes/bajas-pdf', [ReporteController::class, 'bajasPdf'])->name('reportes.bajas_pdf');
         Route::get('/reportes/exportar-excel', [ReporteController::class, 'generarInventarioCSV'])->name('reportes.inventario_csv');
 
-        // --- 2. ASIGNACIONES (Especificas primero) ---
+        // 4. ASIGNACIONES
         Route::post('asignaciones/subir-documento', [AsignacionController::class, 'subirDocumento'])->name('asignaciones.subir_documento');
         Route::get('asignaciones/{id}/historial-documentos', [AsignacionController::class, 'obtenerHistorial'])->name('asignaciones.historial_documentos');
         Route::post('asignaciones/{id}/devolver', [AsignacionController::class, 'devolver'])->name('asignaciones.devolver');
         Route::get('asignaciones/carta/{id}', [AsignacionController::class, 'imprimirCarta'])->name('asignaciones.carta');
         Route::get('asignaciones/carta-lote/{loteId}', [AsignacionController::class, 'imprimirCartaPorLote'])->name('asignaciones.carta_lote');
         Route::get('asignaciones/carta-devolucion/{id}', [AsignacionController::class, 'imprimirCartaDevolucion'])->name('asignaciones.carta_devolucion');
-        // Recurso general (al final)
         Route::resource('asignaciones', AsignacionController::class);
 
-        // --- 3. ALMACÉN (Especificas primero) ---
+        // 5. ALMACÉN
         Route::post('almacen/{id}/cambiar-estado', [AlmacenController::class, 'cambiarEstado'])->name('almacen.cambiar_estado');
         Route::post('almacen/{id}/confirmar-baja', [AlmacenController::class, 'confirmarBajaDefinitiva'])->name('almacen.confirmar_baja');
-        // Recurso general
         Route::resource('almacen', AlmacenController::class)->only(['index']);
 
-        // --- 4. EMPLEADOS (Especificas primero) ---
-        Route::post('/empleados/{id}/documentos', [EmpleadoController::class, 'subirDocumento'])->name('empleados.documentos.store');
-        Route::delete('/empleados/documentos/{id}', [EmpleadoController::class, 'eliminarDocumento'])->name('empleados.documentos.destroy');
-        Route::get('empleados/{id}/historial-pdf', [EmpleadoController::class, 'generarHistorialPdf'])->name('empleados.historial_pdf');
-        // Recurso general
-        Route::resource('empleados', EmpleadoController::class)->except(['destroy']);
-
-        // --- 5. ACTIVOS (Especificas primero - AQUÍ ESTABA TU ERROR) ---
-        // Estas rutas deben ir ANTES del resource 'activos' para que 'bajas' no se tome como un {id}
+        // 6. ACTIVOS
         Route::get('/activos/bajas', [ActivoController::class, 'bajas'])->name('activos.bajas');
         Route::post('activos/quick-add-catalogo', [ActivoController::class, 'storeCatalogo'])->name('activos.quick_add');
-        // Recurso general
         Route::resource('activos', ActivoController::class)->except(['destroy', 'darBaja']);
     });
 
@@ -73,31 +77,23 @@ Route::middleware(['auth'])->group(function () {
     // --- GRUPO 3: SUPER ADMIN (Operaciones destructivas y CONFIGURACIÓN) ---
     Route::middleware(['role:Super Admin'])->group(function () {
         
-        // Operaciones destructivas (Especificas)
+        // Operaciones destructivas
         Route::delete('empleados/{empleado}', [EmpleadoController::class, 'destroy'])->name('empleados.destroy');
         Route::post('/activos/{id}/baja', [ActivoController::class, 'darBaja'])->name('activos.baja');
         Route::delete('activos/{activo}', [ActivoController::class, 'destroy'])->name('activos.destroy');
 
-        // --- NUEVO MODULO DE CONFIGURACIÓN ---
+        // Configuración
         Route::prefix('configuracion')->name('configuracion.')->group(function() {
-            // Dashboard de configuración (Menú principal)
             Route::get('/', [ConfiguracionController::class, 'index'])->name('index');
             
-            // 1. Gestión de Usuarios
             Route::get('/usuarios', [ConfiguracionController::class, 'usuarios'])->name('usuarios');
             Route::post('/usuarios', [ConfiguracionController::class, 'storeUsuario'])->name('usuarios.store');
             Route::put('/usuarios/{id}', [ConfiguracionController::class, 'updateUsuario'])->name('usuarios.update');
             Route::delete('/usuarios/{id}', [ConfiguracionController::class, 'destroyUsuario'])->name('usuarios.destroy');
 
-            // 2. Bitácora / Logs
             Route::get('/bitacora', [ConfiguracionController::class, 'bitacora'])->name('bitacora');
             
-            // 3. Catálogos (Dinámicos)
-            // Ruta para Reset de Fábrica (Especifica antes de la dinámica)
             Route::post('/catalogos-reset', [ConfiguracionController::class, 'resetCatalogos'])->name('catalogos.reset');
-            
-            // Rutas CRUD Dinámicas
-            // {cat?} es opcional para que /catalogos lleve al default
             Route::get('/catalogos/{cat?}', [ConfiguracionController::class, 'catalogos'])->name('catalogos');
             Route::post('/catalogos/{cat}', [ConfiguracionController::class, 'storeCatalogo'])->name('catalogos.store');
             Route::put('/catalogos/{cat}/{id}', [ConfiguracionController::class, 'updateCatalogo'])->name('catalogos.update');

@@ -244,35 +244,43 @@ class EmpleadoController extends Controller
     }
 
     public function destroy(Empleado $empleado)
-    {
-        // Doble seguridad
-        if($empleado->asignacionesActivas()->count() > 0){
-             return response()->json(['success' => false, 'message' => 'No se puede eliminar: Tiene activos asignados.'], 422);
-        }
-
-        try {
-            // [LOG] Captura previa
-            $valoresAnteriores = $empleado->load('contactos')->toArray();
-
-            if ($empleado->foto_url && Storage::disk('public')->exists($empleado->foto_url)) {
-                Storage::disk('public')->delete($empleado->foto_url);
-            }
-            $empleado->delete();
-
-            // [LOG] Registrar Eliminación
-            $this->logAction(
-                'Eliminación de Empleado', 
-                'empleado', 
-                $empleado->id, 
-                $valoresAnteriores, 
-                null
-            );
-
-            return response()->json(['success' => true, 'message' => 'Empleado eliminado exitosamente.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al eliminar.'], 500);
-        }
+{
+    // 1. Validación de seguridad
+    if($empleado->asignacionesActivas()->count() > 0){
+        return response()->json([
+            'success' => false, 
+            'message' => 'No se puede eliminar: Tiene activos asignados.'
+        ], 422);
     }
+
+    try {
+        // 2. Captura de datos para Log
+        $valoresAnteriores = $empleado->load('contactos')->toArray();
+
+        // 3. Borrado de foto
+        if ($empleado->foto_url && \Illuminate\Support\Facades\Storage::disk('public')->exists($empleado->foto_url)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($empleado->foto_url);
+        }
+
+        // 4. Borrado de registro
+        $empleado->delete();
+
+        // 5. Log
+        $this->logAction('Eliminación de Empleado', 'empleado', $empleado->id, $valoresAnteriores, null);
+
+        // CORRECCIÓN AQUÍ: Devolver JSON, no redirect
+        return response()->json([
+            'success' => true, 
+            'message' => 'Empleado eliminado correctamente.'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Error al eliminar: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
     public function subirDocumento(Request $request, $id)
     {
