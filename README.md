@@ -1,61 +1,85 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+<p align="center"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="SIGMA Logo"></p>
+
+<h1 align="center">SIGMA - Sistema de Gestión de Activos TI</h1>
 
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+    <a href="https://laravel.com"><img src="https://img.shields.io/badge/Framework-Laravel-FF2D20?style=flat&logo=laravel" alt="Laravel"></a>
+    <a href="#"><img src="https://img.shields.io/badge/Status-MVP%20Desplegado-success" alt="Status"></a>
+    <a href="#"><img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version"></a>
 </p>
 
-## About Laravel
+## 📋 Sobre SIGMA
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**SIGMA** es una plataforma integral diseñada para la administración eficiente de infraestructura tecnológica y recursos humanos. Su objetivo principal es mantener el control total sobre el inventario de equipos electrónicos, su ciclo de vida y su asignación a los colaboradores de la organización.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Este sistema centraliza la información para facilitar la toma de decisiones por parte del departamento de TI y la gerencia.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## 🚀 Características del MVP
 
-## Learning Laravel
+La versión actual (MVP) incluye los siguientes módulos operativos:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 1. 📦 Gestión de Activos (Inventario)
+Control detallado de todo el equipo electrónico:
+* **Ciclo de Vida:** Monitoreo de estados en tiempo real (Disponible, En Uso, En Mantenimiento, Retirado).
+* **Trazabilidad:** Historial de asignaciones y cambios de estado.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### 2. 👥 Gestión de Empleados
+Administración de la plantilla laboral para asignación de recursos:
+* **Expediente Digital:** Gestión de documentos relacionados con SIGMA.
+* **Gestión de Perfiles:** Operaciones CRUD completas y optimización de almacenamiento (compresión de fotografías).
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 3. 🚨 Mesa de Ayuda (Reportes)
+Canal directo para el mantenimiento operativo:
+* Generación de reportes de alta prioridad por fallas en equipos.
+* Notificaciones directas al departamento de TI.
 
-## Laravel Sponsors
+### 4. ⚙️ Administración y Seguridad
+Módulo de configuración para Super Administradores:
+* **Gestión de Usuarios y Roles:** Control de acceso basado en permisos (RBAC).
+* **Catálogos Dinámicos:** Edición total de los catálogos del sistema sin necesidad de tocar código.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## 🛠️ Stack Tecnológico
 
-### Premium Partners
+* **Framework:** Laravel (PHP)
+* **Base de Datos:** MySQL / MariaDB
+* **Frontend:** Blade / JavaScript
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 🔧 Instalación y Configuración Local
 
-## Contributing
+Si deseas levantar el proyecto en un entorno local para desarrollo o pruebas:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+1.  **Clonar el repositorio**
+    ```bash
+    git clone [https://github.com/tu-usuario/sigma.git](https://github.com/tu-usuario/sigma.git)
+    cd sigma
+    ```
 
-## Code of Conduct
+2.  **Instalar dependencias**
+    ```bash
+    composer install
+    npm install && npm run build
+    ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+3.  **Configurar entorno**
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    ```
 
-## Security Vulnerabilities
+4.  **Base de datos**
+    Asegúrate de configurar tus credenciales en el archivo `.env` y ejecuta:
+    ```bash
+    php artisan migrate --seed
+    ```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+5.  **Ejecutar servidor**
+    ```bash
+    php artisan serve
+    ```
 
-## License
+## 📄 Licencia
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Este es un software propietario desarrollado para uso interno. Todos los derechos reservados.
+
+---
+<p align="center">Desarrollado con ❤️ para el control eficiente de TI.</p>
